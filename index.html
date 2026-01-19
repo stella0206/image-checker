@@ -28,11 +28,14 @@ h1, h2, h3 {
   background: #f0f0f0;
 }
 
-/* ===== Grid ===== */
+/* ===== 區塊 ===== */
 .section {
-  margin-bottom: 40px;
+  margin-bottom: 48px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed #ccc;
 }
 
+/* ===== Grid ===== */
 .grid-6 {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -40,9 +43,17 @@ h1, h2, h3 {
 }
 
 .image-card {
-  border: 1px solid #ccc;
-  padding: 6px;
+  border: 1px solid #ddd;
+  padding: 8px;
   font-size: 12px;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.image-card b {
+  display: block;
+  margin-bottom: 4px;
+  text-align: center;
 }
 
 .overlay-box {
@@ -50,11 +61,13 @@ h1, h2, h3 {
   width: 100%;
   aspect-ratio: 1 / 1;
   border: 1px solid #aaa;
-  background: #fff;
+  background: #fdfdfd;
+  border-radius: 4px;
 }
 
-/* 🔴 關鍵：圖片不能吃掉拖曳事件 */
-.overlay-box img {
+/* 圖片不能吃掉拖曳事件 */
+.overlay-box img,
+.g3-overlay-box img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -65,6 +78,21 @@ h1, h2, h3 {
 
 .ok { color: green; }
 .error { color: red; }
+
+/* ===== g3 專用疊合樣式 ===== */
+.g3-overlay-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.g3-overlay-box {
+  width: 240px;
+  aspect-ratio: 1 / 1;
+  position: relative;
+  border: 1px solid #aaa;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
 
 /* ===== debug ===== */
 #debug {
@@ -100,7 +128,7 @@ h1, h2, h3 {
 
 <script>
 /* =========================================================
-   全域防呆：一定要有
+   全域防呆
 ========================================================= */
 document.addEventListener("dragover", e => e.preventDefault());
 document.addEventListener("drop", e => e.preventDefault());
@@ -133,7 +161,7 @@ function readEntry(entry) {
 }
 
 /* =========================================================
-   Drop 處理（含 GitHub Pages fallback）
+   Drop 處理
 ========================================================= */
 async function handleDrop(e) {
   const dbg = document.getElementById("debug");
@@ -143,7 +171,6 @@ async function handleDrop(e) {
     `items: ${dt.items ? dt.items.length : 0}\n` +
     `files: ${dt.files ? dt.files.length : 0}`;
 
-  // ===== 情況 A：items（可讀資料夾）=====
   if (dt.items && dt.items.length) {
     const entries = [...dt.items]
       .map(i => i.webkitGetAsEntry && i.webkitGetAsEntry())
@@ -157,7 +184,6 @@ async function handleDrop(e) {
     }
   }
 
-  // ===== 情況 B：fallback（一定要）=====
   if (dt.files && dt.files.length) {
     dbg.textContent += `\nfallback files`;
     [...dt.files].forEach(processFile);
@@ -197,14 +223,12 @@ function render() {
   overlayArea.innerHTML = "";
   seriesCheck.innerHTML = "";
 
-  /* ===== 系列分組 ===== */
   const seriesMap = {};
   images.filter(i => i.format === "A").forEach(i => {
     if (!seriesMap[i.seriesKey]) seriesMap[i.seriesKey] = [];
     seriesMap[i.seriesKey].push(i);
   });
 
-  /* ===== 系列完整性 ===== */
   Object.entries(seriesMap).forEach(([key, list]) => {
     const found = list.map(i => i.g);
     const missing = REQUIRED_G.filter(g => !found.includes(g));
@@ -217,7 +241,6 @@ function render() {
     seriesCheck.appendChild(div);
   });
 
-  /* ===== 每個系列 grid ===== */
   Object.entries(seriesMap).forEach(([key, list]) => {
     const section = document.createElement("div");
     section.className = "section";
@@ -243,15 +266,16 @@ function render() {
     overlayArea.appendChild(section);
   });
 
-  /* ===== g3（格式 A）全系列疊合 ===== */
   const allG3 = images.filter(i => i.format === "A" && i.g === "g3");
   if (allG3.length) {
     const g3Section = document.createElement("div");
     g3Section.className = "section";
     g3Section.innerHTML =
       `<h2>g3（格式 A・全系列疊合檢查）</h2>
-       <div class="overlay-box"></div>`;
-    const box = g3Section.querySelector(".overlay-box");
+       <div class="g3-overlay-wrapper">
+         <div class="g3-overlay-box"></div>
+       </div>`;
+    const box = g3Section.querySelector(".g3-overlay-box");
     allG3.forEach(i => box.innerHTML += `<img src="${i.url}">`);
     overlayArea.appendChild(g3Section);
   }
