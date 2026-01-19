@@ -1,21 +1,37 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
 <title>圖片檢查工具</title>
 
 <style>
-body { font-family: Arial; padding: 20px; }
-.drop-zone {
-  border: 3px dashed #555;
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+}
+
+h1, h2, h3 {
+  margin-top: 24px;
+}
+
+/* ===== 拖曳區 ===== */
+#dropZone {
+  border: 3px dashed #444;
   padding: 40px;
   text-align: center;
-  margin-bottom: 20px;
   font-size: 18px;
+  margin-bottom: 20px;
 }
-.drop-zone.dragover { background: #f0f0f0; }
 
-.section { margin-bottom: 40px; }
+#dropZone.dragover {
+  background: #f0f0f0;
+}
+
+/* ===== Grid ===== */
+.section {
+  margin-bottom: 40px;
+}
 
 .grid-6 {
   display: grid;
@@ -25,12 +41,8 @@ body { font-family: Arial; padding: 20px; }
 
 .image-card {
   border: 1px solid #ccc;
-  padding: 8px;
+  padding: 6px;
   font-size: 12px;
-}
-
-.image-card img {
-  width: 100%;
 }
 
 .overlay-box {
@@ -38,23 +50,24 @@ body { font-family: Arial; padding: 20px; }
   width: 100%;
   aspect-ratio: 1 / 1;
   border: 1px solid #aaa;
+  background: #fff;
 }
 
+/* 🔴 關鍵：圖片不能吃掉拖曳事件 */
 .overlay-box img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
+  pointer-events: none;
 }
 
 .ok { color: green; }
 .error { color: red; }
-.warn { color: orange; }
-</style>
-</head>
 
-<div id="debug" style="
+/* ===== debug ===== */
+#debug {
   position: fixed;
   bottom: 0;
   left: 0;
@@ -62,38 +75,49 @@ body { font-family: Arial; padding: 20px; }
   background: #111;
   color: #0f0;
   font-size: 12px;
-  padding: 6px;
+  padding: 4px 8px;
   z-index: 9999;
   white-space: pre;
-"></div>
+}
+</style>
+</head>
 
 <body>
 
 <h1>圖片檢查工具</h1>
 
-<div class="drop-zone" id="dropZone">
-  ✅ 直接拖入圖片 / 多個資料夾 / 混合皆可
+<div id="dropZone">
+  👉 拖入圖片 / 多個資料夾 / 混合皆可（Chrome）
 </div>
 
-<h2>系列檢查結果</h2>
+<h2>系列完整性檢查</h2>
 <div id="seriesCheck"></div>
 
 <h2>疊合檢查</h2>
 <div id="overlayArea"></div>
 
+<div id="debug"></div>
+
 <script>
-// ====== 全域防止瀏覽器吃掉拖曳（關鍵）======
+/* =========================================================
+   全域防呆：一定要有
+========================================================= */
 document.addEventListener("dragover", e => e.preventDefault());
 document.addEventListener("drop", e => e.preventDefault());
 
-// ====== 規則 ======
-const formatARegex = /^(3[MW]G)(\d{8})-ka-(g[1-6])$/;
+/* =========================================================
+   規則
+========================================================= */
+const formatARegex = /^3([MW])G(\d{8})-ka-(g[1-6])$/;
 const formatBRegex = /^(g[12456])$/;
 const GRID_G = ["g1","g2","g4","g5","g6"];
+const REQUIRED_G = ["g1","g2","g3","g4","g5","g6"];
 
 let images = [];
 
-// ====== 拖曳資料夾遞迴讀取 ======
+/* =========================================================
+   拖曳資料夾遞迴讀取
+========================================================= */
 function readEntry(entry) {
   return new Promise(resolve => {
     if (entry.isFile) {
@@ -101,152 +125,152 @@ function readEntry(entry) {
     } else {
       const reader = entry.createReader();
       reader.readEntries(entries => {
-        Promise.all(entries.map(readEntry)).then(r => resolve(r.flat()));
+        Promise.all(entries.map(readEntry))
+          .then(r => resolve(r.flat()));
       });
     }
   });
 }
 
+/* =========================================================
+   Drop 處理（含 GitHub Pages fallback）
+========================================================= */
 async function handleDrop(e) {
   const dbg = document.getElementById("debug");
   const dt = e.dataTransfer;
 
   dbg.textContent =
-    "items: " + (dt.items ? dt.items.length : "none") + "\n" +
-    "files: " + (dt.files ? dt.files.length : "none") + "\n";
+    `items: ${dt.items ? dt.items.length : 0}\n` +
+    `files: ${dt.files ? dt.files.length : 0}`;
 
-  // 嘗試 items（資料夾）
+  // ===== 情況 A：items（可讀資料夾）=====
   if (dt.items && dt.items.length) {
     const entries = [...dt.items]
       .map(i => i.webkitGetAsEntry && i.webkitGetAsEntry())
       .filter(Boolean);
 
-    dbg.textContent += "entries: " + entries.length + "\n";
-
     if (entries.length) {
       const files = (await Promise.all(entries.map(readEntry))).flat();
-      dbg.textContent += "files from entries: " + files.length + "\n";
+      dbg.textContent += `\nentries files: ${files.length}`;
       files.forEach(processFile);
       return;
     }
   }
 
-  // fallback files
+  // ===== 情況 B：fallback（一定要）=====
   if (dt.files && dt.files.length) {
-    dbg.textContent += "using fallback files\n";
+    dbg.textContent += `\nfallback files`;
     [...dt.files].forEach(processFile);
   }
 }
 
-// ====== 處理圖片 ======
+/* =========================================================
+   處理圖片
+========================================================= */
 function processFile(file) {
   if (!file.type.startsWith("image/")) return;
 
-  const img = new Image();
+  const name = file.name.replace(/\.[^/.]+$/, "");
+  let format = "INVALID";
+  let g = null;
+  let seriesKey = null;
+
+  let m = name.match(formatARegex);
+  if (m) {
+    format = "A";
+    seriesKey = `3${m[1]}G${m[2]}`;
+    g = m[3];
+  } else if (formatBRegex.test(name)) {
+    format = "B";
+    g = name;
+  }
+
   const url = URL.createObjectURL(file);
-
-  img.onload = () => {
-    const name = file.name.replace(/\.[^/.]+$/, "");
-    let format = "INVALID", g = null, seriesKey = null;
-
-    let m = name.match(formatARegex);
-    if (m) {
-      format = "A";
-      seriesKey = m[1] + m[2];
-      g = m[3];
-    } else if (formatBRegex.test(name)) {
-      format = "B";
-      g = name;
-    }
-
-    images.push({ name, url, format, g, seriesKey });
-    render();
-  };
-  img.src = url;
+  images.push({ name, format, g, seriesKey, url });
+  render();
 }
 
-// ===== 全部系列 g3（格式 A）疊合 =====
-const allG3 = images.filter(i => i.format === "A" && i.g === "g3");
-
-if (allG3.length) {
-  const g3Section = document.createElement("div");
-  g3Section.className = "section";
-  g3Section.innerHTML = `
-    <h2>g3（格式 A ‧ 全系列疊合檢查）</h2>
-    <div class="overlay-box"></div>
-  `;
-
-  const box = g3Section.querySelector(".overlay-box");
-
-  allG3.forEach(i => {
-    box.innerHTML += `<img src="${i.url}">`;
-  });
-
-  overlayArea.appendChild(g3Section);
-}
-
-
-// ====== 渲染 ======
+/* =========================================================
+   Render
+========================================================= */
 function render() {
   overlayArea.innerHTML = "";
   seriesCheck.innerHTML = "";
 
-  // 依 series 分組
+  /* ===== 系列分組 ===== */
   const seriesMap = {};
-  images.filter(i => i.format==="A").forEach(i => {
+  images.filter(i => i.format === "A").forEach(i => {
     if (!seriesMap[i.seriesKey]) seriesMap[i.seriesKey] = [];
     seriesMap[i.seriesKey].push(i);
   });
 
-  // 系列完整性檢查
+  /* ===== 系列完整性 ===== */
   Object.entries(seriesMap).forEach(([key, list]) => {
     const found = list.map(i => i.g);
     const missing = REQUIRED_G.filter(g => !found.includes(g));
     const div = document.createElement("div");
-    div.innerHTML = `
-      <b>${key}</b>：
-      ${missing.length === 0
-        ? '<span class="ok">✔ 完整</span>'
-        : '<span class="error">缺少 ' + missing.join(", ") + '</span>'}
-    `;
+    div.innerHTML =
+      `<b>${key}</b>：` +
+      (missing.length
+        ? `<span class="error">缺少 ${missing.join(", ")}</span>`
+        : `<span class="ok">✔ 完整</span>`);
     seriesCheck.appendChild(div);
   });
 
-  // 疊合顯示（一列 6 個）
+  /* ===== 每個系列 grid ===== */
   Object.entries(seriesMap).forEach(([key, list]) => {
     const section = document.createElement("div");
     section.className = "section";
-    section.innerHTML = `<h3>系列：${key}</h3><div class="grid-6"></div>`;
+    section.innerHTML = `<h3>${key}</h3><div class="grid-6"></div>`;
     const grid = section.querySelector(".grid-6");
 
-    REQUIRED_G.forEach(g => {
-      const cell = document.createElement("div");
-      cell.className = "image-card";
-      cell.innerHTML = `<b>${g}</b><div class="overlay-box"></div>`;
-      const box = cell.querySelector(".overlay-box");
+    GRID_G.forEach(g => {
+      const card = document.createElement("div");
+      card.className = "image-card";
+      card.innerHTML = `<b>${g}</b><div class="overlay-box"></div>`;
+      const box = card.querySelector(".overlay-box");
 
-      // 下層（格式B，沒有 g3）
-      const b = images.find(i => i.format==="B" && i.g===g);
+      const b = images.find(i => i.format === "B" && i.g === g);
       if (b) box.innerHTML += `<img src="${b.url}">`;
 
-      // 上層（格式A）
-      list.filter(i => i.g===g).forEach(i => {
+      list.filter(i => i.g === g).forEach(i => {
         box.innerHTML += `<img src="${i.url}">`;
       });
 
-      grid.appendChild(cell);
+      grid.appendChild(card);
     });
 
     overlayArea.appendChild(section);
   });
+
+  /* ===== g3（格式 A）全系列疊合 ===== */
+  const allG3 = images.filter(i => i.format === "A" && i.g === "g3");
+  if (allG3.length) {
+    const g3Section = document.createElement("div");
+    g3Section.className = "section";
+    g3Section.innerHTML =
+      `<h2>g3（格式 A・全系列疊合檢查）</h2>
+       <div class="overlay-box"></div>`;
+    const box = g3Section.querySelector(".overlay-box");
+    allG3.forEach(i => box.innerHTML += `<img src="${i.url}">`);
+    overlayArea.appendChild(g3Section);
+  }
 }
 
-// ====== 事件 ======
+/* =========================================================
+   Drop Zone 綁定
+========================================================= */
+const dropZone = document.getElementById("dropZone");
+
 dropZone.addEventListener("dragover", e => {
   e.preventDefault();
   dropZone.classList.add("dragover");
 });
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+
+dropZone.addEventListener("dragleave", () => {
+  dropZone.classList.remove("dragover");
+});
+
 dropZone.addEventListener("drop", e => {
   dropZone.classList.remove("dragover");
   handleDrop(e);
