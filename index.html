@@ -112,7 +112,7 @@ h1, h2, h3 {
 
 <script>
 /* =========================================================
-   全域防呆
+   全域防呆（一定要，但 dropZone 也要再 prevent 一次）
 ========================================================= */
 document.addEventListener("dragover", e => e.preventDefault());
 document.addEventListener("drop", e => e.preventDefault());
@@ -250,7 +250,7 @@ function render() {
     overlayArea.appendChild(section);
   });
 
-  /* ===== g3：使用與 Grid 完全相同的尺寸 ===== */
+  /* g3：與上面尺寸完全一致 */
   const allG3 = images.filter(i => i.format === "A" && i.g === "g3");
   if (allG3.length) {
     const section = document.createElement("div");
@@ -272,7 +272,7 @@ function render() {
 }
 
 /* =========================================================
-   Drop Zone 綁定
+   Drop Zone 綁定（⚠ 這裡一定要 preventDefault）
 ========================================================= */
 const dropZone = document.getElementById("dropZone");
 
@@ -286,6 +286,7 @@ dropZone.addEventListener("dragleave", () => {
 });
 
 dropZone.addEventListener("drop", e => {
+  e.preventDefault();          // ← 關鍵修正
   dropZone.classList.remove("dragover");
   handleDrop(e);
 });
