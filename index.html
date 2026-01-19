@@ -54,6 +54,19 @@ body { font-family: Arial; padding: 20px; }
 </style>
 </head>
 
+<div id="debug" style="
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #111;
+  color: #0f0;
+  font-size: 12px;
+  padding: 6px;
+  z-index: 9999;
+  white-space: pre;
+"></div>
+
 <body>
 
 <h1>圖片檢查工具</h1>
@@ -95,12 +108,34 @@ function readEntry(entry) {
 }
 
 async function handleDrop(e) {
-  const entries = [...e.dataTransfer.items]
-    .map(i => i.webkitGetAsEntry())
-    .filter(Boolean);
+  const dbg = document.getElementById("debug");
+  const dt = e.dataTransfer;
 
-  const files = (await Promise.all(entries.map(readEntry))).flat();
-  files.forEach(processFile);
+  dbg.textContent =
+    "items: " + (dt.items ? dt.items.length : "none") + "\n" +
+    "files: " + (dt.files ? dt.files.length : "none") + "\n";
+
+  // 嘗試 items（資料夾）
+  if (dt.items && dt.items.length) {
+    const entries = [...dt.items]
+      .map(i => i.webkitGetAsEntry && i.webkitGetAsEntry())
+      .filter(Boolean);
+
+    dbg.textContent += "entries: " + entries.length + "\n";
+
+    if (entries.length) {
+      const files = (await Promise.all(entries.map(readEntry))).flat();
+      dbg.textContent += "files from entries: " + files.length + "\n";
+      files.forEach(processFile);
+      return;
+    }
+  }
+
+  // fallback files
+  if (dt.files && dt.files.length) {
+    dbg.textContent += "using fallback files\n";
+    [...dt.files].forEach(processFile);
+  }
 }
 
 // ====== 處理圖片 ======
