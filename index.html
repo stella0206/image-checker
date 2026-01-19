@@ -114,7 +114,7 @@ document.addEventListener("dragover", e => e.preventDefault());
 /* =========================================================
    規則
 ========================================================= */
-const formatARegex = /^3([MW])G(\d{8})-ka-(g[1-6])$/;
+const formatARegex = /^3([MW])[A-Za-z](\d{8})-ka-(g[1-6])$/;
 const formatBRegex = /^(g[12456])$/;
 const GRID_G = ["g1","g2","g4","g5","g6"];
 const REQUIRED_G = ["g1","g2","g3","g4","g5","g6"];
