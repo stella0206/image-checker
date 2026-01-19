@@ -66,8 +66,7 @@ h1, h2, h3 {
 }
 
 /* 圖片不能吃掉拖曳事件 */
-.overlay-box img,
-.g3-overlay-box img {
+.overlay-box img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -78,21 +77,6 @@ h1, h2, h3 {
 
 .ok { color: green; }
 .error { color: red; }
-
-/* ===== g3 專用疊合樣式 ===== */
-.g3-overlay-wrapper {
-  display: flex;
-  justify-content: center;
-}
-
-.g3-overlay-box {
-  width: 240px;
-  aspect-ratio: 1 / 1;
-  position: relative;
-  border: 1px solid #aaa;
-  background: #fff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
 
 /* ===== debug ===== */
 #debug {
@@ -266,18 +250,24 @@ function render() {
     overlayArea.appendChild(section);
   });
 
+  /* ===== g3：使用與 Grid 完全相同的尺寸 ===== */
   const allG3 = images.filter(i => i.format === "A" && i.g === "g3");
   if (allG3.length) {
-    const g3Section = document.createElement("div");
-    g3Section.className = "section";
-    g3Section.innerHTML =
+    const section = document.createElement("div");
+    section.className = "section";
+    section.innerHTML =
       `<h2>g3（格式 A・全系列疊合檢查）</h2>
-       <div class="g3-overlay-wrapper">
-         <div class="g3-overlay-box"></div>
+       <div class="grid-6">
+         <div class="image-card">
+           <b>g3</b>
+           <div class="overlay-box"></div>
+         </div>
        </div>`;
-    const box = g3Section.querySelector(".g3-overlay-box");
+
+    const box = section.querySelector(".overlay-box");
     allG3.forEach(i => box.innerHTML += `<img src="${i.url}">`);
-    overlayArea.appendChild(g3Section);
+
+    overlayArea.appendChild(section);
   }
 }
 
