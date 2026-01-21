@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8" />
-<title>圖片檢查工具</title>
+<title>圖片檢查工具 Image Inspection Tool</title>
 
 <style>
 body {
@@ -13,19 +13,34 @@ body {
 
 h1, h2, h3 {
   margin-top: 24px;
+  line-height: 1.25;
+}
+
+.small-en {
+  display: block;
+  font-size: 0.75em;
+  color: #555;
 }
 
 #dropZone {
   border: 3px dashed #444;
-  padding: 40px;
+  padding: 36px;
   text-align: center;
   font-size: 18px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   cursor: pointer;
 }
 
 #dropZone.dragover {
   background: #f0f0f0;
+}
+
+.controls {
+  margin-bottom: 20px;
+}
+
+.controls button {
+  margin-right: 8px;
 }
 
 .section {
@@ -75,67 +90,125 @@ h1, h2, h3 {
 .ok { color: green; }
 .error { color: red; }
 
-#debug {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: #111;
-  color: #0f0;
-  font-size: 12px;
-  padding: 4px 8px;
-  z-index: 9999;
-  white-space: pre;
-}
-
 /* ===== 疊加檢視視窗 ===== */
 #viewerOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.85);
+  background: rgba(0,0,0,0.88);
   display: none;
-  align-items: center;
-  justify-content: center;
   z-index: 10000;
 }
 
-#viewerOverlay img {
-  max-width: 90vw;
-  max-height: 90vh;
+#viewerContainer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+}
+
+#viewerContainer:active {
+  cursor: grabbing;
+}
+
+#viewerImage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   transform-origin: center center;
   user-select: none;
   pointer-events: none;
+}
+
+#viewerClose {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  font-size: 22px;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.85;
+  z-index: 10001;
+}
+
+#viewerClose:hover {
+  opacity: 1;
+}
+
+#viewerInfo {
+  position: fixed;
+  bottom: 12px;
+  right: 16px;
+  color: rgba(255,255,255,0.75);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: right;
+  z-index: 10001;
+}
+
+#viewerScaleLabel {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  color: #fff;
+  font-size: 14px;
+  opacity: 0.9;
+  z-index: 10001;
 }
 </style>
 </head>
 
 <body>
 
-<h1>圖片檢查工具</h1>
+<h1>
+  圖片檢查工具
+  <span class="small-en">Image Inspection Tool</span>
+</h1>
 
 <div id="dropZone">
-  👉 拖入圖片 / 資料夾，或點此選取
+  👉 拖入圖片 / 資料夾，或點此選取  
+  <span class="small-en">Drag images / folders here, or click to browse</span>
 </div>
 
-<div style="margin-bottom: 20px;">
-  <button id="openFilesBtn">選取圖片</button>
-  <button id="openFolderBtn">選取資料夾</button>
+<div class="controls">
+  <button id="openFilesBtn">
+    選取圖片
+    <span class="small-en">Select Images</span>
+  </button>
+
+  <button id="openFolderBtn">
+    選取資料夾
+    <span class="small-en">Select Folder</span>
+  </button>
 
   <input id="fileInput" type="file" multiple accept="image/*" hidden>
   <input id="folderInput" type="file" webkitdirectory hidden>
 </div>
 
-<h2>系列完整性檢查</h2>
+<h2>
+  系列完整性檢查
+  <span class="small-en">Series Completeness Check</span>
+</h2>
 <div id="seriesCheck"></div>
 
-<h2>疊合檢查</h2>
+<h2>
+  疊合檢查
+  <span class="small-en">Overlay Inspection</span>
+</h2>
 <div id="overlayArea"></div>
-
-<div id="debug"></div>
 
 <!-- 疊加視窗 -->
 <div id="viewerOverlay">
-  <img id="viewerImage">
+  <div id="viewerContainer"></div>
+  <div id="viewerClose">✕</div>
+  <div id="viewerScaleLabel">100%</div>
+  <div id="viewerInfo">
+    滾輪：縮放　拖曳：平移<br>
+    + / -：縮放　Esc：關閉
+    <div class="small-en">
+      Wheel: Zoom &nbsp; Drag: Pan<br>
+      + / -: Zoom &nbsp; Esc: Close
+    </div>
+  </div>
 </div>
 
 <script>
@@ -146,6 +219,7 @@ const REQUIRED_G = ["g1","g2","g3","g4","g5","g6"];
 
 let images = [];
 
+/* ===== 拖曳資料夾遞迴 ===== */
 function readEntry(entry) {
   return new Promise(resolve => {
     if (entry.isFile) {
@@ -160,6 +234,7 @@ function readEntry(entry) {
   });
 }
 
+/* ===== Drop ===== */
 async function handleDrop(e) {
   const dt = e.dataTransfer;
 
@@ -180,6 +255,7 @@ async function handleDrop(e) {
   }
 }
 
+/* ===== 處理圖片 ===== */
 function processFile(file) {
   if (!file.type.startsWith("image/")) return;
 
@@ -203,6 +279,7 @@ function processFile(file) {
   render();
 }
 
+/* ===== Render ===== */
 function render() {
   overlayArea.innerHTML = "";
   seriesCheck.innerHTML = "";
@@ -228,7 +305,9 @@ function render() {
   Object.entries(seriesMap).forEach(([key, list]) => {
     const section = document.createElement("div");
     section.className = "section";
-    section.innerHTML = `<h3>${key}</h3><div class="grid-6"></div>`;
+    section.innerHTML =
+      `<h3>${key}</h3>
+       <div class="grid-6"></div>`;
     const grid = section.querySelector(".grid-6");
 
     GRID_G.forEach(g => {
@@ -263,7 +342,9 @@ function render() {
     const section = document.createElement("div");
     section.className = "section";
     section.innerHTML =
-      `<h2>g3（格式 A・全系列疊合檢查）</h2>
+      `<h2>g3（格式 A・全系列疊合檢查）
+        <span class="small-en">g3 (Format A · Full Series Overlay)</span>
+       </h2>
        <div class="grid-6">
          <div class="image-card">
            <b>g3</b>
@@ -283,31 +364,95 @@ function render() {
   }
 }
 
-/* ===== 疊加視窗邏輯 ===== */
+/* ===== Viewer ===== */
 const viewerOverlay = document.getElementById("viewerOverlay");
-const viewerImage = document.getElementById("viewerImage");
-let viewerScale = 1;
+const viewerContainer = document.getElementById("viewerContainer");
+const viewerClose = document.getElementById("viewerClose");
+const viewerScaleLabel = document.getElementById("viewerScaleLabel");
+
+let viewerImage = null;
+let scale = 1;
+let posX = 0;
+let posY = 0;
+let dragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
 
 function openViewer(url) {
-  viewerScale = 1;
+  viewerContainer.innerHTML = "";
+  viewerImage = document.createElement("img");
+  viewerImage.id = "viewerImage";
   viewerImage.src = url;
-  viewerImage.style.transform = "scale(1)";
-  viewerOverlay.style.display = "flex";
+  viewerContainer.appendChild(viewerImage);
+
+  scale = 1;
+  posX = 0;
+  posY = 0;
+  updateTransform();
+
+  viewerOverlay.style.display = "block";
 }
 
-viewerOverlay.addEventListener("click", () => {
+function closeViewer() {
   viewerOverlay.style.display = "none";
-  viewerImage.src = "";
-});
+  viewerContainer.innerHTML = "";
+}
 
+function updateTransform() {
+  viewerImage.style.transform =
+    `translate(-50%, -50%) translate(${posX}px, ${posY}px) scale(${scale})`;
+  viewerScaleLabel.textContent = Math.round(scale * 100) + "%";
+}
+
+/* 滾輪縮放 */
 viewerOverlay.addEventListener("wheel", e => {
+  if (!viewerImage) return;
   e.preventDefault();
   const delta = e.deltaY < 0 ? 0.1 : -0.1;
-  viewerScale = Math.min(5, Math.max(0.2, viewerScale + delta));
-  viewerImage.style.transform = `scale(${viewerScale})`;
+  scale = Math.min(5, Math.max(0.2, scale + delta));
+  updateTransform();
 }, { passive: false });
 
-/* ===== Drop Zone 綁定 ===== */
+/* 拖曳平移 */
+viewerContainer.addEventListener("mousedown", e => {
+  dragging = true;
+  dragStartX = e.clientX - posX;
+  dragStartY = e.clientY - posY;
+});
+
+window.addEventListener("mousemove", e => {
+  if (!dragging) return;
+  posX = e.clientX - dragStartX;
+  posY = e.clientY - dragStartY;
+  updateTransform();
+});
+
+window.addEventListener("mouseup", () => {
+  dragging = false;
+});
+
+/* 鍵盤 */
+window.addEventListener("keydown", e => {
+  if (viewerOverlay.style.display !== "block") return;
+
+  if (e.key === "Escape") closeViewer();
+  if (e.key === "+" || e.key === "=") {
+    scale = Math.min(5, scale + 0.1);
+    updateTransform();
+  }
+  if (e.key === "-") {
+    scale = Math.max(0.2, scale - 0.1);
+    updateTransform();
+  }
+});
+
+/* 關閉 */
+viewerClose.addEventListener("click", closeViewer);
+viewerOverlay.addEventListener("click", e => {
+  if (e.target === viewerOverlay) closeViewer();
+});
+
+/* ===== Drop Zone ===== */
 const dropZone = document.getElementById("dropZone");
 
 dropZone.addEventListener("dragover", e => {
@@ -325,7 +470,7 @@ dropZone.addEventListener("drop", e => {
   handleDrop(e);
 });
 
-/* ===== 點選選取圖片 / 資料夾 ===== */
+/* ===== 選取 ===== */
 const fileInput = document.getElementById("fileInput");
 const folderInput = document.getElementById("folderInput");
 const openFilesBtn = document.getElementById("openFilesBtn");
@@ -349,11 +494,9 @@ folderInput.addEventListener("change", e => {
   [...e.target.files].forEach(processFile);
 });
 
-/* ===== 防止拖到頁面其他地方被瀏覽器開圖 ===== */
 document.body.addEventListener("dragover", e => e.preventDefault());
 document.body.addEventListener("drop", e => e.preventDefault());
 
-/* ===== 點擊 dropZone 也可開檔 ===== */
 dropZone.addEventListener("click", () => {
   fileInput.value = "";
   fileInput.click();
