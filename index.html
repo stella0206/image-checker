@@ -118,8 +118,8 @@ h1, h2, h3 {
 /* =========================================================
    規則
 ========================================================= */
-const formatARegex = /^3([MW])[A-Za-z](\d{8})-ka-(g[1-6])$/;
-const formatBRegex = /^(g[12456])$/;
+const formatARegex = /^3([MW])[A-Za-z](\d{8})-ka-(g[1-6])$/i;
+const formatBRegex = /^(g[12456])$/i;
 const GRID_G = ["g1","g2","g4","g5","g6"];
 const REQUIRED_G = ["g1","g2","g3","g4","g5","g6"];
 
@@ -186,11 +186,11 @@ function processFile(file) {
   let m = name.match(formatARegex);
   if (m) {
     format = "A";
-    seriesKey = `3${m[1]}G${m[2]}`;
-    g = m[3];
+    g = m[3].toLowerCase();
+    seriesKey = name.replace(/-ka-g[1-6]$/i, "");
   } else if (formatBRegex.test(name)) {
     format = "B";
-    g = name;
+    g = name.toLowerCase();
   }
 
   const url = URL.createObjectURL(file);
@@ -313,7 +313,7 @@ folderInput.addEventListener("change", e => {
 });
 
 /* =========================================================
-   可選：防止拖到頁面其他地方被瀏覽器開圖
+   防止拖到頁面其他地方被瀏覽器開圖
 ========================================================= */
 document.body.addEventListener("dragover", e => e.preventDefault());
 document.body.addEventListener("drop", e => e.preventDefault());
