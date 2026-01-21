@@ -15,25 +15,25 @@ h1, h2, h3 {
   margin-top: 24px;
 }
 
-/* ===== 拖曳區 ===== */
 #dropZone {
   border: 3px dashed #444;
   padding: 40px;
   text-align: center;
   font-size: 18px;
   margin-bottom: 20px;
+  cursor: pointer;
 }
 
 #dropZone.dragover {
   background: #f0f0f0;
 }
 
-/* ===== 區塊 ===== */
 .section {
-  margin-bottom: 40px;
+  margin-bottom: 48px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed #ccc;
 }
 
-/* ===== Grid ===== */
 .grid-6 {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -41,9 +41,17 @@ h1, h2, h3 {
 }
 
 .image-card {
-  border: 1px solid #ccc;
-  padding: 6px;
+  border: 1px solid #ddd;
+  padding: 8px;
   font-size: 12px;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.image-card b {
+  display: block;
+  margin-bottom: 4px;
+  text-align: center;
 }
 
 .overlay-box {
@@ -51,10 +59,10 @@ h1, h2, h3 {
   width: 100%;
   aspect-ratio: 1 / 1;
   border: 1px solid #aaa;
-  background: #fff;
+  background: #fdfdfd;
+  border-radius: 4px;
 }
 
-/* 圖片不能吃掉拖曳事件 */
 .overlay-box img {
   position: absolute;
   inset: 0;
@@ -67,19 +75,6 @@ h1, h2, h3 {
 .ok { color: green; }
 .error { color: red; }
 
-/* ===== INVALID 清單 ===== */
-.invalid-list {
-  background: #fff4f4;
-  border: 1px solid #e00;
-  padding: 8px;
-  font-size: 13px;
-}
-.invalid-list li {
-  color: #c00;
-  margin-left: 16px;
-}
-
-/* ===== debug ===== */
 #debug {
   position: fixed;
   bottom: 0;
@@ -100,7 +95,15 @@ h1, h2, h3 {
 <h1>圖片檢查工具</h1>
 
 <div id="dropZone">
-  👉 拖入圖片 / 多個資料夾 / 混合皆可（Chrome）
+  👉 拖入圖片 / 資料夾，或點此選取
+</div>
+
+<div style="margin-bottom: 20px;">
+  <button id="openFilesBtn">選取圖片</button>
+  <button id="openFolderBtn">選取資料夾</button>
+
+  <input id="fileInput" type="file" multiple accept="image/*" hidden>
+  <input id="folderInput" type="file" webkitdirectory hidden>
 </div>
 
 <h2>系列完整性檢查</h2>
@@ -109,16 +112,220 @@ h1, h2, h3 {
 <h2>疊合檢查</h2>
 <div id="overlayArea"></div>
 
-<h2>錯誤檔案（不符合命名規則）</h2>
-<div id="invalidArea"></div>
-
 <div id="debug"></div>
 
 <script>
 /* =========================================================
-   全域防呆
+   規則
 ========================================================= */
-document.addEventListener("dragover", e => e.preventDefault());
-document.addEventListener("drop", e => e.preventDefault());
+const formatARegex = /^3([MW])[A-Za-z](\d{8})-ka-(g[1-6])$/;
+const formatBRegex = /^(g[12456])$/;
+const GRID_G = ["g1","g2","g4","g5","g6"];
+const REQUIRED_G = ["g1","g2","g3","g4","g5","g6"];
 
-/* ============================================*
+let images = [];
+
+/* =========================================================
+   拖曳資料夾遞迴讀取
+========================================================= */
+function readEntry(entry) {
+  return new Promise(resolve => {
+    if (entry.isFile) {
+      entry.file(f => resolve([f]));
+    } else {
+      const reader = entry.createReader();
+      reader.readEntries(entries => {
+        Promise.all(entries.map(readEntry))
+          .then(r => resolve(r.flat()));
+      });
+    }
+  });
+}
+
+/* =========================================================
+   Drop 處理
+========================================================= */
+async function handleDrop(e) {
+  const dbg = document.getElementById("debug");
+  const dt = e.dataTransfer;
+
+  dbg.textContent =
+    `items: ${dt.items?.length || 0}\n` +
+    `files: ${dt.files?.length || 0}`;
+
+  if (dt.items && dt.items.length) {
+    const entries = [...dt.items]
+      .map(i => i.webkitGetAsEntry && i.webkitGetAsEntry())
+      .filter(Boolean);
+
+    if (entries.length) {
+      const files = (await Promise.all(entries.map(readEntry))).flat();
+      dbg.textContent += `\nentries files: ${files.length}`;
+      files.forEach(processFile);
+      return;
+    }
+  }
+
+  if (dt.files && dt.files.length) {
+    dbg.textContent += `\nfallback files`;
+    [...dt.files].forEach(processFile);
+  }
+}
+
+/* =========================================================
+   處理圖片
+========================================================= */
+function processFile(file) {
+  if (!file.type.startsWith("image/")) return;
+
+  const name = file.name.replace(/\.[^/.]+$/, "");
+  let format = "INVALID";
+  let g = null;
+  let seriesKey = null;
+
+  let m = name.match(formatARegex);
+  if (m) {
+    format = "A";
+    seriesKey = `3${m[1]}G${m[2]}`;
+    g = m[3];
+  } else if (formatBRegex.test(name)) {
+    format = "B";
+    g = name;
+  }
+
+  const url = URL.createObjectURL(file);
+  images.push({ name, format, g, seriesKey, url });
+  render();
+}
+
+/* =========================================================
+   Render
+========================================================= */
+function render() {
+  overlayArea.innerHTML = "";
+  seriesCheck.innerHTML = "";
+
+  const seriesMap = {};
+  images.filter(i => i.format === "A").forEach(i => {
+    if (!seriesMap[i.seriesKey]) seriesMap[i.seriesKey] = [];
+    seriesMap[i.seriesKey].push(i);
+  });
+
+  Object.entries(seriesMap).forEach(([key, list]) => {
+    const found = list.map(i => i.g);
+    const missing = REQUIRED_G.filter(g => !found.includes(g));
+    const div = document.createElement("div");
+    div.innerHTML =
+      `<b>${key}</b>：` +
+      (missing.length
+        ? `<span class="error">缺少 ${missing.join(", ")}</span>`
+        : `<span class="ok">✔ 完整</span>`);
+    seriesCheck.appendChild(div);
+  });
+
+  Object.entries(seriesMap).forEach(([key, list]) => {
+    const section = document.createElement("div");
+    section.className = "section";
+    section.innerHTML = `<h3>${key}</h3><div class="grid-6"></div>`;
+    const grid = section.querySelector(".grid-6");
+
+    GRID_G.forEach(g => {
+      const card = document.createElement("div");
+      card.className = "image-card";
+      card.innerHTML = `<b>${g}</b><div class="overlay-box"></div>`;
+      const box = card.querySelector(".overlay-box");
+
+      const b = images.find(i => i.format === "B" && i.g === g);
+      if (b) box.innerHTML += `<img src="${b.url}">`;
+
+      list.filter(i => i.g === g).forEach(i => {
+        box.innerHTML += `<img src="${i.url}">`;
+      });
+
+      grid.appendChild(card);
+    });
+
+    overlayArea.appendChild(section);
+  });
+
+  const allG3 = images.filter(i => i.format === "A" && i.g === "g3");
+  if (allG3.length) {
+    const section = document.createElement("div");
+    section.className = "section";
+    section.innerHTML =
+      `<h2>g3（格式 A・全系列疊合檢查）</h2>
+       <div class="grid-6">
+         <div class="image-card">
+           <b>g3</b>
+           <div class="overlay-box"></div>
+         </div>
+       </div>`;
+    const box = section.querySelector(".overlay-box");
+    allG3.forEach(i => box.innerHTML += `<img src="${i.url}">`);
+    overlayArea.appendChild(section);
+  }
+}
+
+/* =========================================================
+   Drop Zone 綁定
+========================================================= */
+const dropZone = document.getElementById("dropZone");
+
+dropZone.addEventListener("dragover", e => {
+  e.preventDefault();
+  dropZone.classList.add("dragover");
+});
+
+dropZone.addEventListener("dragleave", () => {
+  dropZone.classList.remove("dragover");
+});
+
+dropZone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropZone.classList.remove("dragover");
+  handleDrop(e);
+});
+
+/* =========================================================
+   點選選取圖片 / 資料夾
+========================================================= */
+const fileInput = document.getElementById("fileInput");
+const folderInput = document.getElementById("folderInput");
+const openFilesBtn = document.getElementById("openFilesBtn");
+const openFolderBtn = document.getElementById("openFolderBtn");
+
+openFilesBtn.addEventListener("click", () => {
+  fileInput.value = "";
+  fileInput.click();
+});
+
+openFolderBtn.addEventListener("click", () => {
+  folderInput.value = "";
+  folderInput.click();
+});
+
+fileInput.addEventListener("change", e => {
+  [...e.target.files].forEach(processFile);
+});
+
+folderInput.addEventListener("change", e => {
+  [...e.target.files].forEach(processFile);
+});
+
+/* =========================================================
+   可選：防止拖到頁面其他地方被瀏覽器開圖
+========================================================= */
+document.body.addEventListener("dragover", e => e.preventDefault());
+document.body.addEventListener("drop", e => e.preventDefault());
+
+/* =========================================================
+   點擊 dropZone 也可開檔
+========================================================= */
+dropZone.addEventListener("click", () => {
+  fileInput.value = "";
+  fileInput.click();
+});
+</script>
+
+</body>
+</html>
