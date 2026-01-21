@@ -69,7 +69,7 @@ h1, h2, h3 {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  pointer-events: none;
+  cursor: pointer;
 }
 
 .ok { color: green; }
@@ -86,6 +86,25 @@ h1, h2, h3 {
   padding: 4px 8px;
   z-index: 9999;
   white-space: pre;
+}
+
+/* ===== 疊加檢視視窗 ===== */
+#viewerOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+#viewerOverlay img {
+  max-width: 90vw;
+  max-height: 90vh;
+  transform-origin: center center;
+  user-select: none;
+  pointer-events: none;
 }
 </style>
 </head>
@@ -114,10 +133,12 @@ h1, h2, h3 {
 
 <div id="debug"></div>
 
+<!-- 疊加視窗 -->
+<div id="viewerOverlay">
+  <img id="viewerImage">
+</div>
+
 <script>
-/* =========================================================
-   規則
-========================================================= */
 const formatARegex = /^3([MW])[A-Za-z](\d{8})-ka-(g[1-6])$/i;
 const formatBRegex = /^(g[12456])$/i;
 const GRID_G = ["g1","g2","g4","g5","g6"];
@@ -125,9 +146,6 @@ const REQUIRED_G = ["g1","g2","g3","g4","g5","g6"];
 
 let images = [];
 
-/* =========================================================
-   拖曳資料夾遞迴讀取
-========================================================= */
 function readEntry(entry) {
   return new Promise(resolve => {
     if (entry.isFile) {
@@ -142,16 +160,8 @@ function readEntry(entry) {
   });
 }
 
-/* =========================================================
-   Drop 處理
-========================================================= */
 async function handleDrop(e) {
-  const dbg = document.getElementById("debug");
   const dt = e.dataTransfer;
-
-  dbg.textContent =
-    `items: ${dt.items?.length || 0}\n` +
-    `files: ${dt.files?.length || 0}`;
 
   if (dt.items && dt.items.length) {
     const entries = [...dt.items]
@@ -160,21 +170,16 @@ async function handleDrop(e) {
 
     if (entries.length) {
       const files = (await Promise.all(entries.map(readEntry))).flat();
-      dbg.textContent += `\nentries files: ${files.length}`;
       files.forEach(processFile);
       return;
     }
   }
 
   if (dt.files && dt.files.length) {
-    dbg.textContent += `\nfallback files`;
     [...dt.files].forEach(processFile);
   }
 }
 
-/* =========================================================
-   處理圖片
-========================================================= */
 function processFile(file) {
   if (!file.type.startsWith("image/")) return;
 
@@ -198,9 +203,6 @@ function processFile(file) {
   render();
 }
 
-/* =========================================================
-   Render
-========================================================= */
 function render() {
   overlayArea.innerHTML = "";
   seriesCheck.innerHTML = "";
@@ -236,10 +238,18 @@ function render() {
       const box = card.querySelector(".overlay-box");
 
       const b = images.find(i => i.format === "B" && i.g === g);
-      if (b) box.innerHTML += `<img src="${b.url}">`;
+      if (b) {
+        const img = document.createElement("img");
+        img.src = b.url;
+        img.addEventListener("click", () => openViewer(b.url));
+        box.appendChild(img);
+      }
 
       list.filter(i => i.g === g).forEach(i => {
-        box.innerHTML += `<img src="${i.url}">`;
+        const img = document.createElement("img");
+        img.src = i.url;
+        img.addEventListener("click", () => openViewer(i.url));
+        box.appendChild(img);
       });
 
       grid.appendChild(card);
@@ -261,14 +271,43 @@ function render() {
          </div>
        </div>`;
     const box = section.querySelector(".overlay-box");
-    allG3.forEach(i => box.innerHTML += `<img src="${i.url}">`);
+
+    allG3.forEach(i => {
+      const img = document.createElement("img");
+      img.src = i.url;
+      img.addEventListener("click", () => openViewer(i.url));
+      box.appendChild(img);
+    });
+
     overlayArea.appendChild(section);
   }
 }
 
-/* =========================================================
-   Drop Zone 綁定
-========================================================= */
+/* ===== 疊加視窗邏輯 ===== */
+const viewerOverlay = document.getElementById("viewerOverlay");
+const viewerImage = document.getElementById("viewerImage");
+let viewerScale = 1;
+
+function openViewer(url) {
+  viewerScale = 1;
+  viewerImage.src = url;
+  viewerImage.style.transform = "scale(1)";
+  viewerOverlay.style.display = "flex";
+}
+
+viewerOverlay.addEventListener("click", () => {
+  viewerOverlay.style.display = "none";
+  viewerImage.src = "";
+});
+
+viewerOverlay.addEventListener("wheel", e => {
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 0.1 : -0.1;
+  viewerScale = Math.min(5, Math.max(0.2, viewerScale + delta));
+  viewerImage.style.transform = `scale(${viewerScale})`;
+}, { passive: false });
+
+/* ===== Drop Zone 綁定 ===== */
 const dropZone = document.getElementById("dropZone");
 
 dropZone.addEventListener("dragover", e => {
@@ -286,9 +325,7 @@ dropZone.addEventListener("drop", e => {
   handleDrop(e);
 });
 
-/* =========================================================
-   點選選取圖片 / 資料夾
-========================================================= */
+/* ===== 點選選取圖片 / 資料夾 ===== */
 const fileInput = document.getElementById("fileInput");
 const folderInput = document.getElementById("folderInput");
 const openFilesBtn = document.getElementById("openFilesBtn");
@@ -312,15 +349,11 @@ folderInput.addEventListener("change", e => {
   [...e.target.files].forEach(processFile);
 });
 
-/* =========================================================
-   防止拖到頁面其他地方被瀏覽器開圖
-========================================================= */
+/* ===== 防止拖到頁面其他地方被瀏覽器開圖 ===== */
 document.body.addEventListener("dragover", e => e.preventDefault());
 document.body.addEventListener("drop", e => e.preventDefault());
 
-/* =========================================================
-   點擊 dropZone 也可開檔
-========================================================= */
+/* ===== 點擊 dropZone 也可開檔 ===== */
 dropZone.addEventListener("click", () => {
   fileInput.value = "";
   fileInput.click();
