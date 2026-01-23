@@ -5,281 +5,136 @@
 <title>圖片檢查工具 Image Inspection Tool</title>
 
 <style>
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-  padding: 20px;
-}
-
-h1, h2, h3 {
-  margin-top: 24px;
-  line-height: 1.25;
-}
-
-.small-en {
-  display: block;
-  font-size: 0.75em;
-  color: #555;
-}
-
-#dropZone {
-  border: 3px dashed #444;
-  padding: 36px;
-  text-align: center;
-  font-size: 18px;
-  margin-bottom: 16px;
-  cursor: pointer;
-}
-
-#dropZone.dragover {
-  background: #f0f0f0;
-}
-
-.controls {
-  margin-bottom: 20px;
-}
-
-.controls button {
-  margin-right: 8px;
-}
-
-.section {
-  margin-bottom: 48px;
-  padding-bottom: 16px;
-  border-bottom: 1px dashed #ccc;
-}
-
-.grid-6 {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 16px;
-}
-
-.image-card {
-  border: 1px solid #ddd;
-  padding: 8px;
-  font-size: 12px;
-  border-radius: 6px;
-  background: #fafafa;
-}
-
-.image-card b {
-  display: block;
-  margin-bottom: 4px;
-  text-align: center;
-}
-
-.overlay-box {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  border: 1px solid #aaa;
-  background: #fdfdfd;
-  border-radius: 4px;
-}
-
-.overlay-box img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  cursor: pointer;
-}
-
+body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+h1, h2, h3 { margin-top: 24px; line-height: 1.25; }
+.small-en { display: block; font-size: 0.75em; color: #555; }
+#dropZone { border: 3px dashed #444; padding: 36px; text-align: center; font-size: 18px; margin-bottom: 16px; cursor: pointer; }
+#dropZone.dragover { background: #f0f0f0; }
+.controls { margin-bottom: 20px; }
+.controls button { margin-right: 8px; }
+.section { margin-bottom: 48px; padding-bottom: 16px; border-bottom: 1px dashed #ccc; }
+.grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
+.image-card { border: 1px solid #ddd; padding: 8px; font-size: 12px; border-radius: 6px; background: #fafafa; }
+.image-card b { display: block; margin-bottom: 4px; text-align: center; }
+.overlay-box { position: relative; width: 100%; aspect-ratio: 1 / 1; border: 1px solid #aaa; background: #fdfdfd; border-radius: 4px; }
+.overlay-box img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
 .ok { color: green; }
 .error { color: red; }
 
-/* ===== 疊加檢視視窗 ===== */
-#viewerOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.88);
-  display: none;
-  z-index: 10000;
-}
+/* ===== Viewer ===== */
+#viewerOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.88); display: none; z-index: 10000; }
+#viewerContainer { position: absolute; inset: 0; overflow: hidden; cursor: grab; }
+#viewerContainer:active { cursor: grabbing; }
+#viewerImage { position: absolute; top: 50%; left: 50%; transform-origin: center center; user-select: none; pointer-events: none; }
+#viewerClose { position: fixed; top: 12px; right: 16px; font-size: 22px; color: #fff; cursor: pointer; opacity: 0.85; z-index: 10001; }
+#viewerClose:hover { opacity: 1; }
+#viewerScaleLabel { position: fixed; top: 12px; left: 16px; color: #fff; font-size: 14px; opacity: 0.9; z-index: 10001; }
+#viewerInfo { position: fixed; bottom: 25%; right: 16px; color: rgba(255,255,255,0.75); font-size: 14px; line-height: 1.4; text-align: right; z-index: 10001; }
+#viewerInfo .small-en { font-size: 0.85em; }
 
-#viewerContainer {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  cursor: grab;
-}
-
-#viewerContainer:active {
-  cursor: grabbing;
-}
-
-#viewerImage {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform-origin: center center;
-  user-select: none;
-  pointer-events: none;
-}
-
-#viewerClose {
-  position: fixed;
-  top: 12px;
-  right: 16px;
-  font-size: 22px;
-  color: #fff;
-  cursor: pointer;
-  opacity: 0.85;
-  z-index: 10001;
-}
-
-#viewerClose:hover {
-  opacity: 1;
-}
-
-#viewerInfo {
-  position: fixed;
-  bottom: 12px;
-  right: 16px;
-  color: rgba(255,255,255,0.75);
-  font-size: 12px;
-  line-height: 1.4;
-  text-align: right;
-  z-index: 10001;
-}
-
-#viewerScaleLabel {
-  position: fixed;
-  top: 12px;
-  left: 16px;
-  color: #fff;
-  font-size: 14px;
-  opacity: 0.9;
-  z-index: 10001;
-}
+/* ===== Viewer arrows ===== */
+.viewer-arrow { position: fixed; top: 50%; transform: translateY(-50%); font-size: 48px; color: rgba(255,255,255,0.7); cursor: pointer; user-select: none; z-index: 10001; padding: 12px; }
+.viewer-arrow:hover { color: rgba(255,255,255,1); }
+#viewerPrev { left: 12px; }
+#viewerNext { right: 12px; }
 </style>
 </head>
-
 <body>
 
-<h1>
-  圖片檢查工具
-  <span class="small-en">Image Inspection Tool</span>
-</h1>
+<h1>圖片檢查工具<span class="small-en">Image Inspection Tool</span></h1>
 
-<div id="dropZone">
-  👉 拖入圖片 / 資料夾，或點此選取  
-  <span class="small-en">Drag images / folders here, or click to browse</span>
-</div>
+<div id="dropZone">👉 拖入圖片 / 資料夾，或點此選取<span class="small-en">Drag images / folders here, or click to browse</span></div>
 
 <div class="controls">
-  <button id="openFilesBtn">
-    選取圖片
-    <span class="small-en">Select Images</span>
-  </button>
-
-  <button id="openFolderBtn">
-    選取資料夾
-    <span class="small-en">Select Folder</span>
-  </button>
-
+  <button id="openFilesBtn">選取圖片<span class="small-en">Select Images</span></button>
+  <button id="openFolderBtn">選取資料夾<span class="small-en">Select Folder</span></button>
   <input id="fileInput" type="file" multiple accept="image/*" hidden>
   <input id="folderInput" type="file" webkitdirectory hidden>
 </div>
 
-<h2>
-  系列完整性檢查
-  <span class="small-en">Series Completeness Check</span>
-</h2>
+<h2>系列完整性檢查<span class="small-en">Series Completeness Check</span></h2>
 <div id="seriesCheck"></div>
 
-<h2>
-  疊合檢查
-  <span class="small-en">Overlay Inspection</span>
-</h2>
+<h2>疊合檢查<span class="small-en">Overlay Inspection</span></h2>
 <div id="overlayArea"></div>
 
-<!-- 疊加視窗 -->
 <div id="viewerOverlay">
   <div id="viewerContainer"></div>
+  <div id="viewerPrev" class="viewer-arrow">‹</div>
+  <div id="viewerNext" class="viewer-arrow">›</div>
   <div id="viewerClose">✕</div>
-  <div id="viewerScaleLabel">100%</div>
+  <div id="viewerScaleLabel">30%</div>
   <div id="viewerInfo">
     滾輪：縮放　拖曳：平移<br>
-    + / -：縮放　Esc：關閉
-    <div class="small-en">
-      Wheel: Zoom &nbsp; Drag: Pan<br>
-      + / -: Zoom &nbsp; Esc: Close
-    </div>
+    + / -：縮放　← / →：切換圖片　Esc：關閉
+    <div class="small-en">Wheel: Zoom &nbsp; Drag: Pan<br>+ / -: Zoom &nbsp; ← / →: Previous / Next &nbsp; Esc: Close</div>
   </div>
 </div>
 
 <script>
+const REQUIRED_WIDTH = 4800;
+const REQUIRED_HEIGHT = 4800;
+
 const formatARegex = /^3([MW])[A-Za-z](\d{8})-ka-(g[1-6])$/i;
 const formatBRegex = /^(g[12456])$/i;
 const GRID_G = ["g1","g2","g4","g5","g6"];
 const REQUIRED_G = ["g1","g2","g3","g4","g5","g6"];
 
 let images = [];
+let viewerList = [];
+let viewerIndex = 0;
 
-/* ===== 拖曳資料夾遞迴 ===== */
 function readEntry(entry) {
   return new Promise(resolve => {
-    if (entry.isFile) {
-      entry.file(f => resolve([f]));
-    } else {
+    if (entry.isFile) entry.file(f => resolve([f]));
+    else {
       const reader = entry.createReader();
-      reader.readEntries(entries => {
-        Promise.all(entries.map(readEntry))
-          .then(r => resolve(r.flat()));
-      });
+      reader.readEntries(entries => Promise.all(entries.map(readEntry)).then(r => resolve(r.flat())));
     }
   });
 }
 
-/* ===== Drop ===== */
 async function handleDrop(e) {
   const dt = e.dataTransfer;
-
   if (dt.items && dt.items.length) {
-    const entries = [...dt.items]
-      .map(i => i.webkitGetAsEntry && i.webkitGetAsEntry())
-      .filter(Boolean);
-
-    if (entries.length) {
-      const files = (await Promise.all(entries.map(readEntry))).flat();
-      files.forEach(processFile);
-      return;
-    }
+    const entries = [...dt.items].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+    if (entries.length) (await Promise.all(entries.map(readEntry))).flat().forEach(processFile);
+    return;
   }
-
-  if (dt.files && dt.files.length) {
-    [...dt.files].forEach(processFile);
-  }
+  if (dt.files && dt.files.length) [...dt.files].forEach(processFile);
 }
 
-/* ===== 處理圖片 ===== */
 function processFile(file) {
   if (!file.type.startsWith("image/")) return;
-
-  const name = file.name.replace(/\.[^/.]+$/, "");
-  let format = "INVALID";
-  let g = null;
-  let seriesKey = null;
-
-  let m = name.match(formatARegex);
-  if (m) {
-    format = "A";
-    g = m[3].toLowerCase();
-    seriesKey = name.replace(/-ka-g[1-6]$/i, "");
-  } else if (formatBRegex.test(name)) {
-    format = "B";
-    g = name.toLowerCase();
-  }
-
   const url = URL.createObjectURL(file);
-  images.push({ name, format, g, seriesKey, url });
-  render();
+  const img = new Image();
+
+  img.onload = () => {
+    if (img.width !== REQUIRED_WIDTH || img.height !== REQUIRED_HEIGHT) {
+      URL.revokeObjectURL(url);
+      const div = document.createElement("div");
+      div.className = "error";
+      div.textContent = `尺寸錯誤 ${img.width}×${img.height}，應為 ${REQUIRED_WIDTH}×${REQUIRED_HEIGHT} (Invalid size ${img.width}×${img.height}, expected ${REQUIRED_WIDTH}×${REQUIRED_HEIGHT})`;
+      seriesCheck.appendChild(div);
+      return;
+    }
+
+    const name = file.name.replace(/\.[^/.]+$/, "");
+    let format = "INVALID";
+    let g = null;
+    let seriesKey = null;
+
+    let m = name.match(formatARegex);
+    if (m) { format = "A"; g = m[3].toLowerCase(); seriesKey = name.replace(/-ka-g[1-6]$/i, ""); }
+    else if (formatBRegex.test(name)) { format = "B"; g = name.toLowerCase(); }
+
+    images.push({ name, format, g, seriesKey, url });
+    render();
+  };
+
+  img.src = url;
 }
 
-/* ===== Render ===== */
 function render() {
   overlayArea.innerHTML = "";
   seriesCheck.innerHTML = "";
@@ -294,20 +149,14 @@ function render() {
     const found = list.map(i => i.g);
     const missing = REQUIRED_G.filter(g => !found.includes(g));
     const div = document.createElement("div");
-    div.innerHTML =
-      `<b>${key}</b>：` +
-      (missing.length
-        ? `<span class="error">缺少 ${missing.join(", ")}</span>`
-        : `<span class="ok">✔ 完整</span>`);
+    div.innerHTML = `<b>${key}</b>：` + (missing.length ? `<span class="error">缺少 ${missing.join(", ")} (lack of ${missing.join(", ")})</span>` : `<span class="ok">✔ 完整 (Complete)</span>`);
     seriesCheck.appendChild(div);
   });
 
   Object.entries(seriesMap).forEach(([key, list]) => {
     const section = document.createElement("div");
     section.className = "section";
-    section.innerHTML =
-      `<h3>${key}</h3>
-       <div class="grid-6"></div>`;
+    section.innerHTML = `<h3>${key}</h3><div class="grid-6"></div>`;
     const grid = section.querySelector(".grid-6");
 
     GRID_G.forEach(g => {
@@ -316,18 +165,15 @@ function render() {
       card.innerHTML = `<b>${g}</b><div class="overlay-box"></div>`;
       const box = card.querySelector(".overlay-box");
 
+      const groupImages = [];
       const b = images.find(i => i.format === "B" && i.g === g);
-      if (b) {
-        const img = document.createElement("img");
-        img.src = b.url;
-        img.addEventListener("click", () => openViewer(b.url));
-        box.appendChild(img);
-      }
+      if (b) groupImages.push(b.url);
+      list.filter(i => i.g === g).forEach(i => groupImages.push(i.url));
 
-      list.filter(i => i.g === g).forEach(i => {
+      groupImages.forEach((url, idx) => {
         const img = document.createElement("img");
-        img.src = i.url;
-        img.addEventListener("click", () => openViewer(i.url));
+        img.src = url;
+        img.addEventListener("click", () => openViewer(groupImages, idx));
         box.appendChild(img);
       });
 
@@ -341,56 +187,55 @@ function render() {
   if (allG3.length) {
     const section = document.createElement("div");
     section.className = "section";
-    section.innerHTML =
-      `<h2>g3（格式 A・全系列疊合檢查）
-        <span class="small-en">g3 (Format A · Full Series Overlay)</span>
-       </h2>
-       <div class="grid-6">
-         <div class="image-card">
-           <b>g3</b>
-           <div class="overlay-box"></div>
-         </div>
-       </div>`;
+    section.innerHTML = `<h2>g3（格式 A・全系列疊合檢查）<span class="small-en">g3 (Format A · Full Series Overlay)</span></h2><div class="grid-6"><div class="image-card"><b>g3</b><div class="overlay-box"></div></div></div>`;
     const box = section.querySelector(".overlay-box");
-
-    allG3.forEach(i => {
+    const g3Urls = allG3.map(i => i.url);
+    g3Urls.forEach((url, idx) => {
       const img = document.createElement("img");
-      img.src = i.url;
-      img.addEventListener("click", () => openViewer(i.url));
+      img.src = url;
+      img.addEventListener("click", () => openViewer(g3Urls, idx));
       box.appendChild(img);
     });
-
     overlayArea.appendChild(section);
   }
 }
 
-/* ===== Viewer ===== */
 const viewerOverlay = document.getElementById("viewerOverlay");
 const viewerContainer = document.getElementById("viewerContainer");
 const viewerClose = document.getElementById("viewerClose");
 const viewerScaleLabel = document.getElementById("viewerScaleLabel");
+const viewerPrev = document.getElementById("viewerPrev");
+const viewerNext = document.getElementById("viewerNext");
 
 let viewerImage = null;
-let scale = 1;
+let scale = 0.3;
 let posX = 0;
 let posY = 0;
 let dragging = false;
 let dragStartX = 0;
 let dragStartY = 0;
 
-function openViewer(url) {
+function openViewer(urls, startIndex = 0) {
+  viewerList = urls;
+  viewerIndex = startIndex;
+
   viewerContainer.innerHTML = "";
   viewerImage = document.createElement("img");
   viewerImage.id = "viewerImage";
-  viewerImage.src = url;
   viewerContainer.appendChild(viewerImage);
 
-  scale = 1;
+  scale = 0.3;
   posX = 0;
   posY = 0;
-  updateTransform();
 
+  showViewerImage();
   viewerOverlay.style.display = "block";
+}
+
+function showViewerImage() {
+  if (!viewerList.length) return;
+  viewerImage.src = viewerList[viewerIndex];
+  updateTransform();
 }
 
 function closeViewer() {
@@ -399,12 +244,10 @@ function closeViewer() {
 }
 
 function updateTransform() {
-  viewerImage.style.transform =
-    `translate(-50%, -50%) translate(${posX}px, ${posY}px) scale(${scale})`;
+  viewerImage.style.transform = `translate(-50%, -50%) translate(${posX}px, ${posY}px) scale(${scale})`;
   viewerScaleLabel.textContent = Math.round(scale * 100) + "%";
 }
 
-/* 滾輪縮放 */
 viewerOverlay.addEventListener("wheel", e => {
   if (!viewerImage) return;
   e.preventDefault();
@@ -413,7 +256,6 @@ viewerOverlay.addEventListener("wheel", e => {
   updateTransform();
 }, { passive: false });
 
-/* 拖曳平移 */
 viewerContainer.addEventListener("mousedown", e => {
   dragging = true;
   dragStartX = e.clientX - posX;
@@ -427,81 +269,53 @@ window.addEventListener("mousemove", e => {
   updateTransform();
 });
 
-window.addEventListener("mouseup", () => {
-  dragging = false;
-});
+window.addEventListener("mouseup", () => dragging = false);
 
-/* 鍵盤 */
 window.addEventListener("keydown", e => {
   if (viewerOverlay.style.display !== "block") return;
-
   if (e.key === "Escape") closeViewer();
-  if (e.key === "+" || e.key === "=") {
-    scale = Math.min(5, scale + 0.1);
-    updateTransform();
-  }
-  if (e.key === "-") {
-    scale = Math.max(0.2, scale - 0.1);
-    updateTransform();
-  }
+  if (e.key === "ArrowLeft") prevImage();
+  if (e.key === "ArrowRight") nextImage();
+  if (e.key === "+" || e.key === "=") { scale = Math.min(5, scale + 0.1); updateTransform(); }
+  if (e.key === "-") { scale = Math.max(0.2, scale - 0.1); updateTransform(); }
 });
 
-/* 關閉 */
+function prevImage() {
+  if (!viewerList.length) return;
+  viewerIndex = (viewerIndex - 1 + viewerList.length) % viewerList.length;
+  showViewerImage();
+}
+
+function nextImage() {
+  if (!viewerList.length) return;
+  viewerIndex = (viewerIndex + 1) % viewerList.length;
+  showViewerImage();
+}
+
+viewerPrev.addEventListener("click", e => { e.stopPropagation(); prevImage(); });
+viewerNext.addEventListener("click", e => { e.stopPropagation(); nextImage(); });
 viewerClose.addEventListener("click", closeViewer);
-viewerOverlay.addEventListener("click", e => {
-  if (e.target === viewerOverlay) closeViewer();
-});
+viewerOverlay.addEventListener("click", e => { if (e.target === viewerOverlay) closeViewer(); });
 
-/* ===== Drop Zone ===== */
 const dropZone = document.getElementById("dropZone");
+dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+dropZone.addEventListener("drop", e => { e.preventDefault(); dropZone.classList.remove("dragover"); handleDrop(e); });
 
-dropZone.addEventListener("dragover", e => {
-  e.preventDefault();
-  dropZone.classList.add("dragover");
-});
+document.body.addEventListener("dragover", e => e.preventDefault());
+document.body.addEventListener("drop", e => e.preventDefault());
 
-dropZone.addEventListener("dragleave", () => {
-  dropZone.classList.remove("dragover");
-});
-
-dropZone.addEventListener("drop", e => {
-  e.preventDefault();
-  dropZone.classList.remove("dragover");
-  handleDrop(e);
-});
-
-/* ===== 選取 ===== */
 const fileInput = document.getElementById("fileInput");
 const folderInput = document.getElementById("folderInput");
 const openFilesBtn = document.getElementById("openFilesBtn");
 const openFolderBtn = document.getElementById("openFolderBtn");
 
-openFilesBtn.addEventListener("click", () => {
-  fileInput.value = "";
-  fileInput.click();
-});
+openFilesBtn.addEventListener("click", () => { fileInput.value = ""; fileInput.click(); });
+openFolderBtn.addEventListener("click", () => { folderInput.value = ""; folderInput.click(); });
+fileInput.addEventListener("change", e => [...e.target.files].forEach(processFile));
+folderInput.addEventListener("change", e => [...e.target.files].forEach(processFile));
 
-openFolderBtn.addEventListener("click", () => {
-  folderInput.value = "";
-  folderInput.click();
-});
-
-fileInput.addEventListener("change", e => {
-  [...e.target.files].forEach(processFile);
-});
-
-folderInput.addEventListener("change", e => {
-  [...e.target.files].forEach(processFile);
-});
-
-document.body.addEventListener("dragover", e => e.preventDefault());
-document.body.addEventListener("drop", e => e.preventDefault());
-
-dropZone.addEventListener("click", () => {
-  fileInput.value = "";
-  fileInput.click();
-});
+dropZone.addEventListener("click", () => { fileInput.value = ""; fileInput.click(); });
 </script>
-
 </body>
 </html>
