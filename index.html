@@ -2,61 +2,39 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8" />
-<title>圖片檢查工具 Image Inspection Tool</title>
-
+<title>Image Checker 圖片檢查工具</title>
 <style>
-body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-h1, h2, h3 { margin-top: 24px; line-height: 1.25; }
-.small-en { display: block; font-size: 0.75em; color: #555; }
-#dropZone { border: 3px dashed #444; padding: 36px; text-align: center; font-size: 18px; margin-bottom: 16px; cursor: pointer; }
-#dropZone.dragover { background: #f0f0f0; }
-.controls { margin-bottom: 20px; }
-.controls button { margin-right: 8px; }
-.section { margin-bottom: 48px; padding-bottom: 16px; border-bottom: 1px dashed #ccc; }
-.grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
-.image-card { border: 1px solid #ddd; padding: 8px; font-size: 12px; border-radius: 6px; background: #fafafa; }
-.image-card b { display: block; margin-bottom: 4px; text-align: center; }
-.overlay-box { position: relative; width: 100%; aspect-ratio: 1 / 1; border: 1px solid #aaa; background: #fdfdfd; border-radius: 4px; }
-.overlay-box img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
-.ok { color: green; }
-.error { color: red; }
+body { margin:0; font-family: Arial, sans-serif; background:#111; color:#eee; }
+#dropZone { position:fixed; left:0; top:0; right:0; bottom:0; border:2px dashed #555; display:flex; align-items:center; justify-content:center; text-align:center; }
+#controls { position:fixed; top:12px; left:12px; }
+button { margin:4px; }
+.series { border:1px solid #444; margin:8px; padding:8px; }
+.cell { width:120px; height:120px; border:1px solid #555; display:inline-block; position:relative; margin:4px; overflow:hidden; }
+.cell img { width:100%; height:100%; object-fit:cover; position:absolute; left:0; top:0; cursor:pointer; }
+.missing { color:#f55; font-size:12px; }
 
-/* ===== Viewer ===== */
-#viewerOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.88); display: none; z-index: 10000; }
-#viewerContainer { position: absolute; inset: 0; overflow: hidden; cursor: grab; }
-#viewerContainer:active { cursor: grabbing; }
-#viewerImage { position: absolute; top: 50%; left: 50%; transform-origin: center center; user-select: none; pointer-events: none; }
-#viewerClose { position: fixed; top: 12px; right: 16px; font-size: 22px; color: #fff; cursor: pointer; opacity: 0.85; z-index: 10001; }
-#viewerClose:hover { opacity: 1; }
-#viewerScaleLabel { position: fixed; top: 12px; left: 16px; color: #fff; font-size: 14px; opacity: 0.9; z-index: 10001; }
-#viewerInfo { position: fixed; bottom: 25%; right: 16px; color: rgba(255,255,255,0.75); font-size: 14px; line-height: 1.4; text-align: right; z-index: 10001; }
-#viewerInfo .small-en { font-size: 0.85em; }
+#viewerOverlay { position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(0,0,0,0.85); display:none; z-index:10000; }
+#viewerContainer { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); cursor:grab; }
+#viewerContainer img { display:block; }
+#viewerClose { position:fixed; right:16px; top:16px; font-size:24px; cursor:pointer; }
+#viewerScaleLabel { position:fixed; left:16px; top:16px; }
 
-/* ===== Viewer arrows ===== */
 .viewer-arrow { position: fixed; top: 50%; transform: translateY(-50%); font-size: 48px; color: rgba(255,255,255,0.7); cursor: pointer; user-select: none; z-index: 10001; padding: 12px; }
 .viewer-arrow:hover { color: rgba(255,255,255,1); }
 #viewerPrev { left: 12px; }
 #viewerNext { right: 12px; }
+
+#viewerInfo { position: fixed; bottom: 25%; right: 16px; color: rgba(255,255,255,0.75); font-size: 14px; line-height: 1.4; text-align: right; z-index: 10001; }
+#viewerInfo .small-en { font-size:0.85em; }
 </style>
 </head>
 <body>
-
-<h1>圖片檢查工具<span class="small-en">Image Inspection Tool</span></h1>
-
-<div id="dropZone">👉 拖入圖片 / 資料夾，或點此選取<span class="small-en">Drag images / folders here, or click to browse</span></div>
-
-<div class="controls">
-  <button id="openFilesBtn">選取圖片<span class="small-en">Select Images</span></button>
-  <button id="openFolderBtn">選取資料夾<span class="small-en">Select Folder</span></button>
-  <input id="fileInput" type="file" multiple accept="image/*" hidden>
-  <input id="folderInput" type="file" webkitdirectory hidden>
+<div id="controls">
+  <button id="openImages">選取圖片<br><span class="small-en">Select Images</span></button>
+  <button id="openFolder">選取資料夾<br><span class="small-en">Select Folder</span></button>
 </div>
-
-<h2>系列完整性檢查<span class="small-en">Series Completeness Check</span></h2>
-<div id="seriesCheck"></div>
-
-<h2>疊合檢查<span class="small-en">Overlay Inspection</span></h2>
-<div id="overlayArea"></div>
+<div id="dropZone">拖入圖片或資料夾<br><span class="small-en">Drop images or folders here</span></div>
+<div id="output"></div>
 
 <div id="viewerOverlay">
   <div id="viewerContainer"></div>
@@ -66,139 +44,22 @@ h1, h2, h3 { margin-top: 24px; line-height: 1.25; }
   <div id="viewerScaleLabel">30%</div>
   <div id="viewerInfo">
     滾輪：縮放　拖曳：平移<br>
-    + / -：縮放　← / →：切換圖片　Esc：關閉
-    <div class="small-en">Wheel: Zoom &nbsp; Drag: Pan<br>+ / -: Zoom &nbsp; ← / →: Previous / Next &nbsp; Esc: Close</div>
+    + / -：縮放　← / →：切換疊合序列　Esc：關閉
+    <div class="small-en">
+      Wheel: Zoom &nbsp; Drag: Pan<br>
+      + / -: Zoom &nbsp; ← / →: Overlay Sequence &nbsp; Esc: Close
+    </div>
   </div>
 </div>
 
+<input type="file" id="fileInput" multiple accept="image/*" style="display:none" />
+<input type="file" id="folderInput" webkitdirectory directory style="display:none" />
+
 <script>
-const REQUIRED_WIDTH = 4800;
-const REQUIRED_HEIGHT = 4800;
-
-const formatARegex = /^3([MW])[A-Za-z](\d{8})-ka-(g[1-6])$/i;
-const formatBRegex = /^(g[12456])$/i;
-const GRID_G = ["g1","g2","g4","g5","g6"];
-const REQUIRED_G = ["g1","g2","g3","g4","g5","g6"];
-
-let images = [];
-let viewerList = [];
-let viewerIndex = 0;
-
-function readEntry(entry) {
-  return new Promise(resolve => {
-    if (entry.isFile) entry.file(f => resolve([f]));
-    else {
-      const reader = entry.createReader();
-      reader.readEntries(entries => Promise.all(entries.map(readEntry)).then(r => resolve(r.flat())));
-    }
-  });
-}
-
-async function handleDrop(e) {
-  const dt = e.dataTransfer;
-  if (dt.items && dt.items.length) {
-    const entries = [...dt.items].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
-    if (entries.length) (await Promise.all(entries.map(readEntry))).flat().forEach(processFile);
-    return;
-  }
-  if (dt.files && dt.files.length) [...dt.files].forEach(processFile);
-}
-
-function processFile(file) {
-  if (!file.type.startsWith("image/")) return;
-  const url = URL.createObjectURL(file);
-  const img = new Image();
-
-  img.onload = () => {
-    if (img.width !== REQUIRED_WIDTH || img.height !== REQUIRED_HEIGHT) {
-      URL.revokeObjectURL(url);
-      const div = document.createElement("div");
-      div.className = "error";
-      div.textContent = `尺寸錯誤 ${img.width}×${img.height}，應為 ${REQUIRED_WIDTH}×${REQUIRED_HEIGHT} (Invalid size ${img.width}×${img.height}, expected ${REQUIRED_WIDTH}×${REQUIRED_HEIGHT})`;
-      seriesCheck.appendChild(div);
-      return;
-    }
-
-    const name = file.name.replace(/\.[^/.]+$/, "");
-    let format = "INVALID";
-    let g = null;
-    let seriesKey = null;
-
-    let m = name.match(formatARegex);
-    if (m) { format = "A"; g = m[3].toLowerCase(); seriesKey = name.replace(/-ka-g[1-6]$/i, ""); }
-    else if (formatBRegex.test(name)) { format = "B"; g = name.toLowerCase(); }
-
-    images.push({ name, format, g, seriesKey, url });
-    render();
-  };
-
-  img.src = url;
-}
-
-function render() {
-  overlayArea.innerHTML = "";
-  seriesCheck.innerHTML = "";
-
-  const seriesMap = {};
-  images.filter(i => i.format === "A").forEach(i => {
-    if (!seriesMap[i.seriesKey]) seriesMap[i.seriesKey] = [];
-    seriesMap[i.seriesKey].push(i);
-  });
-
-  Object.entries(seriesMap).forEach(([key, list]) => {
-    const found = list.map(i => i.g);
-    const missing = REQUIRED_G.filter(g => !found.includes(g));
-    const div = document.createElement("div");
-    div.innerHTML = `<b>${key}</b>：` + (missing.length ? `<span class="error">缺少 ${missing.join(", ")} (lack of ${missing.join(", ")})</span>` : `<span class="ok">✔ 完整 (Complete)</span>`);
-    seriesCheck.appendChild(div);
-  });
-
-  Object.entries(seriesMap).forEach(([key, list]) => {
-    const section = document.createElement("div");
-    section.className = "section";
-    section.innerHTML = `<h3>${key}</h3><div class="grid-6"></div>`;
-    const grid = section.querySelector(".grid-6");
-
-    GRID_G.forEach(g => {
-      const card = document.createElement("div");
-      card.className = "image-card";
-      card.innerHTML = `<b>${g}</b><div class="overlay-box"></div>`;
-      const box = card.querySelector(".overlay-box");
-
-      const groupImages = [];
-      const b = images.find(i => i.format === "B" && i.g === g);
-      if (b) groupImages.push(b.url);
-      list.filter(i => i.g === g).forEach(i => groupImages.push(i.url));
-
-      groupImages.forEach((url, idx) => {
-        const img = document.createElement("img");
-        img.src = url;
-        img.addEventListener("click", () => openViewer(groupImages, idx));
-        box.appendChild(img);
-      });
-
-      grid.appendChild(card);
-    });
-
-    overlayArea.appendChild(section);
-  });
-
-  const allG3 = images.filter(i => i.format === "A" && i.g === "g3");
-  if (allG3.length) {
-    const section = document.createElement("div");
-    section.className = "section";
-    section.innerHTML = `<h2>g3（格式 A・全系列疊合檢查）<span class="small-en">g3 (Format A · Full Series Overlay)</span></h2><div class="grid-6"><div class="image-card"><b>g3</b><div class="overlay-box"></div></div></div>`;
-    const box = section.querySelector(".overlay-box");
-    const g3Urls = allG3.map(i => i.url);
-    g3Urls.forEach((url, idx) => {
-      const img = document.createElement("img");
-      img.src = url;
-      img.addEventListener("click", () => openViewer(g3Urls, idx));
-      box.appendChild(img);
-    });
-    overlayArea.appendChild(section);
-  }
-}
+const output = document.getElementById("output");
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+const folderInput = document.getElementById("folderInput");
 
 const viewerOverlay = document.getElementById("viewerOverlay");
 const viewerContainer = document.getElementById("viewerContainer");
@@ -207,115 +68,165 @@ const viewerScaleLabel = document.getElementById("viewerScaleLabel");
 const viewerPrev = document.getElementById("viewerPrev");
 const viewerNext = document.getElementById("viewerNext");
 
-let viewerImage = null;
-let scale = 0.3;
-let posX = 0;
-let posY = 0;
-let dragging = false;
-let dragStartX = 0;
-let dragStartY = 0;
+let seriesMap = {};
 
-function openViewer(urls, startIndex = 0) {
-  viewerList = urls;
-  viewerIndex = startIndex;
+let viewerSeries = null;
+let viewerIndex = 0;
+let viewerScale = 0.3;
+let isDragging = false;
+let dragStart = {x:0,y:0};
+let imgStart = {x:0,y:0};
 
-  viewerContainer.innerHTML = "";
-  viewerImage = document.createElement("img");
-  viewerImage.id = "viewerImage";
-  viewerContainer.appendChild(viewerImage);
+// ===== Helpers =====
+function parseName(name) {
+  const m = name.match(/(.+?)[-_ ]?(g[1-6])/i);
+  if (!m) return null;
+  return { series: m[1], g: m[2].toLowerCase() };
+}
 
-  scale = 0.3;
-  posX = 0;
-  posY = 0;
+function isValidSize(file, cb) {
+  const img = new Image();
+  img.onload = () => cb(img.width === 4800 && img.height === 4800);
+  img.src = URL.createObjectURL(file);
+}
 
-  showViewerImage();
+function handleFiles(files) {
+  [...files].forEach(file => {
+    const info = parseName(file.name);
+    if (!info) return;
+
+    isValidSize(file, ok => {
+      if (!ok) return;
+      if (!seriesMap[info.series]) seriesMap[info.series] = { A:{}, B:{} };
+      const format = file.name.includes("A") ? "A" : "B";
+      if (!seriesMap[info.series][format][info.g]) seriesMap[info.series][format][info.g] = [];
+      seriesMap[info.series][format][info.g].push(file);
+      render();
+    });
+  });
+}
+
+// ===== Rendering =====
+function render() {
+  output.innerHTML = "";
+  Object.keys(seriesMap).forEach(series => {
+    const div = document.createElement("div");
+    div.className = "series";
+    div.innerHTML = `<h3>${series}</h3>`;
+
+    for (let i=1;i<=6;i++){
+      const g = "g"+i;
+      const cell = document.createElement("div");
+      cell.className = "cell";
+
+      const aImgs = seriesMap[series].A[g]||[];
+      const bImgs = seriesMap[series].B[g]||[];
+
+      if (aImgs.length||bImgs.length) {
+        [...aImgs,...bImgs].forEach((file,idx)=>{
+          const img = document.createElement("img");
+          img.src = URL.createObjectURL(file);
+          img.style.opacity = idx===0?1:0.5;
+          img.addEventListener("click",()=>openOverlaySequence(series,i));
+          cell.appendChild(img);
+        });
+      } else {
+        cell.innerHTML = `<div class="missing">缺少 ${g}<br><span class="small-en">Lack of ${g}</span></div>`;
+      }
+      div.appendChild(cell);
+    }
+    output.appendChild(div);
+  });
+}
+
+// ===== Overlay Sequence Logic =====
+function openOverlaySequence(series, gIndex) {
+  viewerSeries = series;
+  viewerIndex = gIndex - 1;
+  viewerScale = 0.3;
+  updateViewerImage();
   viewerOverlay.style.display = "block";
 }
 
-function showViewerImage() {
-  if (!viewerList.length) return;
-  viewerImage.src = viewerList[viewerIndex];
-  updateTransform();
-}
-
-function closeViewer() {
-  viewerOverlay.style.display = "none";
+function updateViewerImage() {
   viewerContainer.innerHTML = "";
+  const g = "g"+(viewerIndex+1);
+  const aImgs = seriesMap[viewerSeries].A[g]||[];
+  const bImgs = seriesMap[viewerSeries].B[g]||[];
+
+  [...aImgs,...bImgs].forEach((file,idx)=>{
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(file);
+    img.style.position = "absolute";
+    img.style.left = "0";
+    img.style.top = "0";
+    img.style.opacity = idx===0?1:0.5;
+    viewerContainer.appendChild(img);
+  });
+
+  viewerContainer.style.left = "50%";
+  viewerContainer.style.top = "50%";
+  viewerContainer.style.transform = `translate(-50%,-50%) scale(${viewerScale})`;
+  viewerScaleLabel.textContent = Math.round(viewerScale*100)+"%";
 }
-
-function updateTransform() {
-  viewerImage.style.transform = `translate(-50%, -50%) translate(${posX}px, ${posY}px) scale(${scale})`;
-  viewerScaleLabel.textContent = Math.round(scale * 100) + "%";
-}
-
-viewerOverlay.addEventListener("wheel", e => {
-  if (!viewerImage) return;
-  e.preventDefault();
-  const delta = e.deltaY < 0 ? 0.1 : -0.1;
-  scale = Math.min(5, Math.max(0.2, scale + delta));
-  updateTransform();
-}, { passive: false });
-
-viewerContainer.addEventListener("mousedown", e => {
-  dragging = true;
-  dragStartX = e.clientX - posX;
-  dragStartY = e.clientY - posY;
-});
-
-window.addEventListener("mousemove", e => {
-  if (!dragging) return;
-  posX = e.clientX - dragStartX;
-  posY = e.clientY - dragStartY;
-  updateTransform();
-});
-
-window.addEventListener("mouseup", () => dragging = false);
-
-window.addEventListener("keydown", e => {
-  if (viewerOverlay.style.display !== "block") return;
-  if (e.key === "Escape") closeViewer();
-  if (e.key === "ArrowLeft") prevImage();
-  if (e.key === "ArrowRight") nextImage();
-  if (e.key === "+" || e.key === "=") { scale = Math.min(5, scale + 0.1); updateTransform(); }
-  if (e.key === "-") { scale = Math.max(0.2, scale - 0.1); updateTransform(); }
-});
 
 function prevImage() {
-  if (!viewerList.length) return;
-  viewerIndex = (viewerIndex - 1 + viewerList.length) % viewerList.length;
-  showViewerImage();
+  if (!viewerSeries) return;
+  viewerIndex = (viewerIndex + 5) % 6;
+  updateViewerImage();
 }
 
 function nextImage() {
-  if (!viewerList.length) return;
-  viewerIndex = (viewerIndex + 1) % viewerList.length;
-  showViewerImage();
+  if (!viewerSeries) return;
+  viewerIndex = (viewerIndex + 1) % 6;
+  updateViewerImage();
 }
 
-viewerPrev.addEventListener("click", e => { e.stopPropagation(); prevImage(); });
-viewerNext.addEventListener("click", e => { e.stopPropagation(); nextImage(); });
-viewerClose.addEventListener("click", closeViewer);
-viewerOverlay.addEventListener("click", e => { if (e.target === viewerOverlay) closeViewer(); });
+// ===== Viewer Interaction =====
+viewerPrev.onclick = e => { e.stopPropagation(); prevImage(); };
+viewerNext.onclick = e => { e.stopPropagation(); nextImage(); };
+viewerClose.onclick = ()=> viewerOverlay.style.display="none";
 
-const dropZone = document.getElementById("dropZone");
-dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-dropZone.addEventListener("drop", e => { e.preventDefault(); dropZone.classList.remove("dragover"); handleDrop(e); });
+viewerOverlay.addEventListener("wheel", e=>{
+  e.preventDefault();
+  viewerScale += e.deltaY<0?0.05:-0.05;
+  viewerScale = Math.max(0.05,Math.min(3,viewerScale));
+  updateViewerImage();
+});
 
-document.body.addEventListener("dragover", e => e.preventDefault());
-document.body.addEventListener("drop", e => e.preventDefault());
+viewerContainer.addEventListener("mousedown", e=>{
+  isDragging = true;
+  dragStart = {x:e.clientX,y:e.clientY};
+  const rect = viewerContainer.getBoundingClientRect();
+  imgStart = {x:rect.left,y:rect.top};
+});
 
-const fileInput = document.getElementById("fileInput");
-const folderInput = document.getElementById("folderInput");
-const openFilesBtn = document.getElementById("openFilesBtn");
-const openFolderBtn = document.getElementById("openFolderBtn");
+window.addEventListener("mousemove", e=>{
+  if (!isDragging) return;
+  viewerContainer.style.left = imgStart.x + (e.clientX-dragStart.x) + "px";
+  viewerContainer.style.top = imgStart.y + (e.clientY-dragStart.y) + "px";
+  viewerContainer.style.transform = `scale(${viewerScale})`;
+});
 
-openFilesBtn.addEventListener("click", () => { fileInput.value = ""; fileInput.click(); });
-openFolderBtn.addEventListener("click", () => { folderInput.value = ""; folderInput.click(); });
-fileInput.addEventListener("change", e => [...e.target.files].forEach(processFile));
-folderInput.addEventListener("change", e => [...e.target.files].forEach(processFile));
+window.addEventListener("mouseup", ()=> isDragging=false);
 
-dropZone.addEventListener("click", () => { fileInput.value = ""; fileInput.click(); });
+window.addEventListener("keydown", e=>{
+  if (viewerOverlay.style.display!=="block") return;
+  if (e.key==="Escape") viewerOverlay.style.display="none";
+  if (e.key==="ArrowLeft") prevImage();
+  if (e.key==="ArrowRight") nextImage();
+  if (e.key==="+") { viewerScale+=0.05; updateViewerImage(); }
+  if (e.key==="-") { viewerScale-=0.05; updateViewerImage(); }
+});
+
+// ===== Input Handling =====
+dropZone.ondragover = e=>{e.preventDefault();};
+dropZone.ondrop = e=>{e.preventDefault(); handleFiles(e.dataTransfer.files);};
+fileInput.onchange = e=> handleFiles(e.target.files);
+folderInput.onchange = e=> handleFiles(e.target.files);
+
+document.getElementById("openImages").onclick = ()=> fileInput.click();
+document.getElementById("openFolder").onclick = ()=> folderInput.click();
 </script>
 </body>
 </html>
