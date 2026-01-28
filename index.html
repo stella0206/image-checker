@@ -3,72 +3,352 @@
 <head>
 <meta charset="UTF-8" />
 <title>圖片檢查工具 Image Inspection Tool</title>
+
 <style>
-body{font-family:Arial,sans-serif;margin:0;padding:20px}
-h1,h2,h3{margin-top:24px;line-height:1.25}
-.small-en{display:block;font-size:.75em;color:#555}
-#dropZone{border:3px dashed #444;padding:36px;text-align:center;font-size:18px;margin-bottom:16px;cursor:pointer}
-#dropZone.dragover{background:#f0f0f0}
-.controls{margin-bottom:20px}
-.controls button{margin-right:8px}
-.section{margin-bottom:48px;padding-bottom:16px;border-bottom:1px dashed #ccc}
-.grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
-.image-card{border:1px solid #ddd;padding:8px;font-size:12px;border-radius:6px;background:#fafafa}
-.image-card b{display:block;margin-bottom:4px;text-align:center}
-.overlay-box{position:relative;width:100%;aspect-ratio:1/1;border:1px solid #aaa;background:#fdfdfd;border-radius:4px}
-.overlay-box img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;cursor:pointer}
-.ok{color:green}.error{color:red}
-#viewerOverlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;z-index:10000}
-#viewerContainer{position:absolute;inset:0;overflow:hidden;cursor:grab}
-#viewerImageWrap{position:absolute;top:50%;left:50%;transform-origin:center center}
-#viewerClose{position:fixed;top:12px;right:16px;font-size:22px;color:#fff;cursor:pointer;opacity:.85;z-index:10001}
-#viewerScaleLabel{position:fixed;top:12px;left:16px;color:#fff;font-size:14px;z-index:10001}
-#viewerInfo{position:fixed;right:16px;bottom:25%;color:rgba(255,255,255,.8);font-size:14px;line-height:1.4;text-align:right;z-index:10001}
-.viewerArrow{position:fixed;top:50%;transform:translateY(-50%);font-size:48px;color:rgba(255,255,255,.6);cursor:pointer;z-index:10001;user-select:none}
-#arrowLeft{left:20px}#arrowRight{right:20px}
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+}
+
+h1, h2, h3 {
+  margin-top: 24px;
+  line-height: 1.25;
+}
+
+.small-en {
+  display: block;
+  font-size: 0.75em;
+  color: #555;
+}
+
+#dropZone {
+  border: 3px dashed #444;
+  padding: 36px;
+  text-align: center;
+  font-size: 18px;
+  margin-bottom: 16px;
+  cursor: pointer;
+}
+
+#dropZone.dragover {
+  background: #f0f0f0;
+}
+
+.controls {
+  margin-bottom: 20px;
+}
+
+.controls button {
+  margin-right: 8px;
+}
+
+.section {
+  margin-bottom: 48px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed #ccc;
+}
+
+.grid-6 {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+}
+
+.image-card {
+  border: 1px solid #ddd;
+  padding: 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.image-card b {
+  display: block;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.overlay-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 1px solid #aaa;
+  background: #fdfdfd;
+  border-radius: 4px;
+}
+
+.overlay-box img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  cursor: pointer;
+}
+
+.ok { color: green; }
+.error { color: red; }
+
+/* ===== Viewer ===== */
+#viewerOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.88);
+  display: none;
+  z-index: 10000;
+}
+
+#viewerContainer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+#viewerWrap {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
+}
+
+#viewerWrap img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+#viewerClose {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  font-size: 22px;
+  color: #fff;
+  cursor: pointer;
+  z-index: 10001;
+}
+
+#viewerScale {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  color: #fff;
+  font-size: 16px;
+}
+
+#viewerInfo {
+  position: fixed;
+  right: 16px;
+  bottom: 25%;
+  font-size: 14px;
+  color: rgba(255,255,255,0.8);
+  text-align: right;
+}
 </style>
 </head>
+
 <body>
-<h1>圖片檢查工具<span class="small-en">Image Inspection Tool</span></h1>
-<div id="dropZone">👉 拖入圖片 / 資料夾，或點此選取<span class="small-en">Drag images / folders here, or click to browse</span></div>
-<div class="controls">
-<button id="openFilesBtn">選取圖片<span class="small-en">Select Images</span></button>
-<button id="openFolderBtn">選取資料夾<span class="small-en">Select Folder</span></button>
-<input id="fileInput" type="file" multiple accept="image/*" hidden>
-<input id="folderInput" type="file" webkitdirectory hidden>
+
+<h1>
+  圖片檢查工具
+  <span class="small-en">Image Inspection Tool</span>
+</h1>
+
+<div id="dropZone">
+  👉 拖入圖片或資料夾，或點此選取
+  <span class="small-en">Drag images or folders here, or click to browse</span>
 </div>
+
+<div class="controls">
+  <button id="openFilesBtn">選取圖片<span class="small-en">Select Images</span></button>
+  <button id="openFolderBtn">選取資料夾<span class="small-en">Select Folder</span></button>
+  <input id="fileInput" type="file" multiple accept="image/*" hidden>
+  <input id="folderInput" type="file" webkitdirectory hidden>
+</div>
+
+<h2>系列完整性檢查<span class="small-en">Series Completeness Check</span></h2>
+<div id="seriesCheck"></div>
+
 <h2>疊合檢查<span class="small-en">Overlay Inspection</span></h2>
 <div id="overlayArea"></div>
+
 <div id="viewerOverlay">
-  <div id="viewerContainer"><div id="viewerImageWrap"></div></div>
+  <div id="viewerContainer"></div>
   <div id="viewerClose">✕</div>
-  <div id="viewerScaleLabel">30%</div>
-  <div id="viewerInfo">滾輪：縮放　拖曳：平移<br>← →：切換 g<br>Esc：關閉
-    <div class="small-en">Wheel: Zoom &nbsp; Drag: Pan<br>← →: Switch g &nbsp; Esc: Close</div>
+  <div id="viewerScale">30%</div>
+  <div id="viewerInfo">
+    ← / →：切換 g<br>
+    滾輪：縮放　拖曳：平移<br>
+    Esc：關閉
+    <div class="small-en">
+      ← / →: switch g<br>
+      Wheel: zoom · Drag: pan<br>
+      Esc: close
+    </div>
   </div>
-  <div id="arrowLeft" class="viewerArrow">◀</div>
-  <div id="arrowRight" class="viewerArrow">▶</div>
 </div>
+
 <script>
-const formatA=/^3([MW])[A-Za-z](\d{8})-ka-(g[1-6])$/i;
-const formatB=/^(g[1-6])$/i;
-const Gs=["g1","g2","g3","g4","g5","g6"];
-let images=[];
-function processFile(f){if(!f.type.startsWith("image/"))return;const img=new Image();img.onload=()=>{if(img.width!==4800||img.height!==4800)return;const name=f.name.replace(/\.[^/.]+$/,"");let format=null,g=null,key=null;let m=name.match(formatA);if(m){format="A";g=m[3].toLowerCase();key=name.replace(/-ka-g[1-6]$/i,"")}else if(formatB.test(name)){format="B";g=name.toLowerCase()}
-images.push({format,g,key,url:URL.createObjectURL(f)});render()};img.src=URL.createObjectURL(f)}
-function render(){overlayArea.innerHTML="";const map={};images.filter(i=>i.format==="A").forEach(i=>{map[i.key]=map[i.key]||{};map[i.key][i.g]=i});Object.entries(map).forEach(([key,gmap])=>{const sec=document.createElement("div");sec.className="section";sec.innerHTML=`<h3>${key}</h3><div class=grid-6></div>`;const grid=sec.querySelector('.grid-6');Gs.forEach(g=>{const card=document.createElement('div');card.className='image-card';card.innerHTML=`<b>${g}</b><div class=overlay-box></div>`;const box=card.querySelector('.overlay-box');const a=gmap[g];const b=images.find(i=>i.format==='B'&&i.g===g);if(a&&b){[b,a].forEach(i=>{const im=document.createElement('img');im.src=i.url;im.onclick=()=>openViewer(key,g);box.appendChild(im)})}
-grid.appendChild(card)});overlayArea.appendChild(sec)})}
-let curKey=null,curGIndex=0,scale=.3,posX=0,posY=0;
-const wrap=document.getElementById('viewerImageWrap');
-function openViewer(key,g){curKey=key;curGIndex=Gs.indexOf(g);viewerOverlay.style.display='block';scale=.3;posX=0;posY=0;renderViewer()}
-function renderViewer(){wrap.innerHTML='';const g=Gs[curGIndex];const a=images.find(i=>i.format==='A'&&i.key===curKey&&i.g===g);const b=images.find(i=>i.format==='B'&&i.g===g);if(!a||!b)return;[b,a].forEach(i=>{const im=document.createElement('img');im.src=i.url;im.style.position='absolute';im.style.inset=0;im.style.width='100%';im.style.height='100%';im.style.objectFit='contain';wrap.appendChild(im)});updateTransform()}
-function updateTransform(){wrap.style.transform=`translate(-50%,-50%) translate(${posX}px,${posY}px) scale(${scale})`;viewerScaleLabel.textContent=Math.round(scale*100)+'%'}
-document.getElementById('arrowLeft').onclick=()=>{curGIndex=(curGIndex+5)%6;renderViewer()};
-document.getElementById('arrowRight').onclick=()=>{curGIndex=(curGIndex+1)%6;renderViewer()};
-viewerOverlay.onwheel=e=>{e.preventDefault();scale=Math.min(5,Math.max(.2,scale+(e.deltaY<0?.1:-.1)));updateTransform()};
-document.getElementById('viewerClose').onclick=()=>viewerOverlay.style.display='none';
-document.addEventListener('keydown',e=>{if(viewerOverlay.style.display!=='block')return;if(e.key==='ArrowLeft')arrowLeft.onclick();if(e.key==='ArrowRight')arrowRight.onclick();if(e.key==='Escape')viewerOverlay.style.display='none'});
-const dropZone=document.getElementById('dropZone');dropZone.onclick=()=>fileInput.click();dropZone.ondragover=e=>{e.preventDefault();dropZone.classList.add('dragover')};dropZone.ondragleave=()=>dropZone.classList.remove('dragover');dropZone.ondrop=e=>{e.preventDefault();dropZone.classList.remove('dragover');[...e.dataTransfer.files].forEach(processFile)};fileInput.onchange=e=>[...e.target.files].forEach(processFile);folderInput.onchange=e=>[...e.target.files].forEach(processFile);
+const REQUIRED_W = 4800;
+const REQUIRED_H = 4800;
+
+const formatARegex = /^3([MW])[A-Za-z](\d{8})-ka-(g[1-6])$/i;
+const formatBRegex = /^(g[1-6])$/i;
+const GS = ["g1","g2","g3","g4","g5","g6"];
+
+let images = [];
+let viewerSeries = null;
+let viewerGIndex = 0;
+let scale = 0.3, posX = 0, posY = 0;
+
+/* ===== Drag & Select ===== */
+function handleFiles(files) {
+  [...files].forEach(file => {
+    if (!file.type.startsWith("image/")) return;
+
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      if (img.width !== REQUIRED_W || img.height !== REQUIRED_H) return;
+
+      const name = file.name.replace(/\.[^/.]+$/, "");
+      let format=null,g=null,key=null;
+
+      let m = name.match(formatARegex);
+      if (m) {
+        format="A"; g=m[3].toLowerCase(); key=name.replace(/-ka-g[1-6]$/i,"");
+      } else if (formatBRegex.test(name)) {
+        format="B"; g=name.toLowerCase();
+      }
+
+      images.push({name,format,g,key,url});
+      render();
+    };
+    img.src = url;
+  });
+}
+
+dropZone.ondragover = e => { e.preventDefault(); dropZone.classList.add("dragover"); };
+dropZone.ondragleave = () => dropZone.classList.remove("dragover");
+dropZone.ondrop = e => {
+  e.preventDefault();
+  dropZone.classList.remove("dragover");
+  handleFiles(e.dataTransfer.files);
+};
+dropZone.onclick = () => fileInput.click();
+
+openFilesBtn.onclick = () => fileInput.click();
+openFolderBtn.onclick = () => folderInput.click();
+fileInput.onchange = e => handleFiles(e.target.files);
+folderInput.onchange = e => handleFiles(e.target.files);
+
+/* ===== Render ===== */
+function render() {
+  overlayArea.innerHTML = "";
+  seriesCheck.innerHTML = "";
+
+  const map = {};
+  images.filter(i=>i.format==="A").forEach(i=>{
+    if(!map[i.key]) map[i.key]=[];
+    map[i.key].push(i);
+  });
+
+  Object.entries(map).forEach(([k,list])=>{
+    const found=list.map(i=>i.g);
+    const miss=GS.filter(g=>!found.includes(g));
+    const d=document.createElement("div");
+    d.innerHTML=`<b>${k}</b>：`+
+      (miss.length?`<span class=error>缺少 ${miss.join(", ")} (lack)</span>`
+                  :`<span class=ok>✔ 完整 (complete)</span>`);
+    seriesCheck.appendChild(d);
+  });
+
+  Object.entries(map).forEach(([k,list])=>{
+    const sec=document.createElement("div");
+    sec.className="section";
+    sec.innerHTML=`<h3>${k}</h3><div class="grid-6"></div>`;
+    const grid=sec.querySelector(".grid-6");
+
+    GS.forEach(g=>{
+      const card=document.createElement("div");
+      card.className="image-card";
+      card.innerHTML=`<b>${g}</b><div class="overlay-box"></div>`;
+      const box=card.querySelector(".overlay-box");
+
+      const b=images.find(i=>i.format==="B"&&i.g===g);
+      if(b){
+        const im=document.createElement("img");
+        im.src=b.url;
+        box.appendChild(im);
+      }
+
+      list.filter(i=>i.g===g).forEach(a=>{
+        const im=document.createElement("img");
+        im.src=a.url;
+        im.onclick=()=>openViewer(k,g);
+        box.appendChild(im);
+      });
+
+      grid.appendChild(card);
+    });
+    overlayArea.appendChild(sec);
+  });
+}
+
+/* ===== Viewer ===== */
+const overlay=document.getElementById("viewerOverlay");
+const container=document.getElementById("viewerContainer");
+const scaleLabel=document.getElementById("viewerScale");
+
+function openViewer(series,g){
+  viewerSeries=series;
+  viewerGIndex=GS.indexOf(g);
+  scale=0.3; posX=0; posY=0;
+  overlay.style.display="block";
+  renderViewer();
+}
+
+function renderViewer(){
+  container.innerHTML="";
+  const wrap=document.createElement("div");
+  wrap.id="viewerWrap";
+  wrap.style.transform=`translate(-50%,-50%) translate(${posX}px,${posY}px) scale(${scale})`;
+
+  const g=GS[viewerGIndex];
+  const b=images.find(i=>i.format==="B"&&i.g===g);
+  const a=images.find(i=>i.format==="A"&&i.key===viewerSeries&&i.g===g);
+
+  [b,a].forEach(i=>{
+    if(!i) return;
+    const im=document.createElement("img");
+    im.src=i.url;
+    wrap.appendChild(im);
+  });
+
+  container.appendChild(wrap);
+  scaleLabel.textContent=Math.round(scale*100)+"%";
+}
+
+viewerOverlay.onwheel=e=>{
+  e.preventDefault();
+  scale+=e.deltaY<0?0.05:-0.05;
+  scale=Math.max(0.2,Math.min(5,scale));
+  renderViewer();
+};
+
+window.onkeydown=e=>{
+  if(overlay.style.display!=="block") return;
+  if(e.key==="Escape") overlay.style.display="none";
+  if(e.key==="ArrowRight"){ viewerGIndex=(viewerGIndex+1)%6; renderViewer(); }
+  if(e.key==="ArrowLeft"){ viewerGIndex=(viewerGIndex+5)%6; renderViewer(); }
+};
+
+viewerClose.onclick=()=>overlay.style.display="none";
+overlay.onclick=e=>{ if(e.target===overlay) overlay.style.display="none"; };
 </script>
+
 </body>
 </html>
