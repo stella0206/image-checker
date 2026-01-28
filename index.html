@@ -97,6 +97,9 @@ h1,h2,h3 { margin-top:24px; line-height:1.25; }
   <span class="small-en">Drag images or folders here, or click to browse</span>
 </div>
 
+<h2>全部疊合比對<span class="small-en">Compare All Series</span></h2>
+<div id="compareArea" class="grid-6"></div>
+
 <h2>疊合檢查<span class="small-en">Overlay Inspection</span></h2>
 <div id="overlayArea"></div>
 
@@ -179,6 +182,7 @@ function processFile(file){
 
 /* ===== Render ===== */
 function render(){
+  renderCompare();
   overlayArea.innerHTML="";
   const seriesMap={};
   images.filter(i=>i.format==="A").forEach(i=>{
@@ -214,6 +218,36 @@ function render(){
   });
 }
 
+function renderCompare(){
+  compareArea.innerHTML="";
+  
+  GS.forEach(g=>{
+    const card=document.createElement("div");
+    card.className="image-card";
+    card.innerHTML=`<b>全部 ${g}<span class="small-en">All ${g}</span></b><div class="overlay-box"></div>`;
+    const box=card.querySelector(".overlay-box");
+    
+    // 先加format B
+    const b=images.find(i=>i.format==="B"&&i.g===g);
+    if(b){
+      const img=document.createElement("img");
+      img.src=b.url;
+      img.onclick=()=>openCompareViewer(g);
+      box.appendChild(img);
+    }
+    
+    // 加所有format A的這個g
+    images.filter(i=>i.format==="A"&&i.g===g).forEach(i=>{
+      const img=document.createElement("img");
+      img.src=i.url;
+      img.onclick=()=>openCompareViewer(g);
+      box.appendChild(img);
+    });
+    
+    compareArea.appendChild(card);
+  });
+}
+
 /* ===== Viewer ===== */
 function openViewer(series,g){
   viewerSeries=series;
@@ -223,10 +257,20 @@ function openViewer(series,g){
   renderViewer();
 }
 
+function openCompareViewer(g){
+  viewerSeries=null;
+  viewerGIndex=GS.indexOf(g);
+  scale=0.3;
+  viewerOverlay.style.display="block";
+  renderCompareViewer();
+}
+
 function renderViewer(){
   viewerContainer.innerHTML="";
   const wrap=document.createElement("div");
   wrap.id="viewerWrap";
+  wrap.style.width=REQUIRED+"px";
+  wrap.style.height=REQUIRED+"px";
   wrap.style.transform=`translate(-50%,-50%) scale(${scale})`;
 
   const g=GS[viewerGIndex];
@@ -244,18 +288,56 @@ function renderViewer(){
   viewerScale.textContent=Math.round(scale*100)+"%";
 }
 
+function renderCompareViewer(){
+  viewerContainer.innerHTML="";
+  const wrap=document.createElement("div");
+  wrap.id="viewerWrap";
+  wrap.style.width=REQUIRED+"px";
+  wrap.style.height=REQUIRED+"px";
+  wrap.style.transform=`translate(-50%,-50%) scale(${scale})`;
+
+  const g=GS[viewerGIndex];
+  
+  // 先加format B
+  const b=images.find(i=>i.format==="B"&&i.g===g);
+  if(b){
+    const im=document.createElement("img");
+    im.src=b.url;
+    wrap.appendChild(im);
+  }
+  
+  // 加所有format A的這個g
+  images.filter(i=>i.format==="A"&&i.g===g).forEach(i=>{
+    const im=document.createElement("img");
+    im.src=i.url;
+    wrap.appendChild(im);
+  });
+
+  viewerContainer.appendChild(wrap);
+  viewerScale.textContent=Math.round(scale*100)+"%";
+}
+
 viewerOverlay.addEventListener("wheel",e=>{
   e.preventDefault();
   scale+=e.deltaY<0?0.05:-0.05;
   scale=Math.max(.2,Math.min(5,scale));
-  renderViewer();
+  if(viewerSeries===null) renderCompareViewer();
+  else renderViewer();
 },{passive:false});
 
 window.addEventListener("keydown",e=>{
   if(viewerOverlay.style.display!=="block") return;
   if(e.key==="Escape") viewerOverlay.style.display="none";
-  if(e.key==="ArrowRight"){viewerGIndex=(viewerGIndex+1)%6;renderViewer();}
-  if(e.key==="ArrowLeft"){viewerGIndex=(viewerGIndex+5)%6;renderViewer();}
+  if(e.key==="ArrowRight"){
+    viewerGIndex=(viewerGIndex+1)%6;
+    if(viewerSeries===null) renderCompareViewer();
+    else renderViewer();
+  }
+  if(e.key==="ArrowLeft"){
+    viewerGIndex=(viewerGIndex+5)%6;
+    if(viewerSeries===null) renderCompareViewer();
+    else renderViewer();
+  }
 });
 
 viewerClose.onclick=()=>viewerOverlay.style.display="none";
