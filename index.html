@@ -2,231 +2,73 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8" />
-<title>Image Checker 圖片檢查工具</title>
+<title>圖片檢查工具 Image Inspection Tool</title>
 <style>
-body { margin:0; font-family: Arial, sans-serif; background:#111; color:#eee; }
-#dropZone { position:fixed; left:0; top:0; right:0; bottom:0; border:2px dashed #555; display:flex; align-items:center; justify-content:center; text-align:center; }
-#controls { position:fixed; top:12px; left:12px; }
-button { margin:4px; }
-.series { border:1px solid #444; margin:8px; padding:8px; }
-.cell { width:120px; height:120px; border:1px solid #555; display:inline-block; position:relative; margin:4px; overflow:hidden; }
-.cell img { width:100%; height:100%; object-fit:cover; position:absolute; left:0; top:0; cursor:pointer; }
-.missing { color:#f55; font-size:12px; }
-
-#viewerOverlay { position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(0,0,0,0.85); display:none; z-index:10000; }
-#viewerContainer { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); cursor:grab; }
-#viewerContainer img { display:block; }
-#viewerClose { position:fixed; right:16px; top:16px; font-size:24px; cursor:pointer; }
-#viewerScaleLabel { position:fixed; left:16px; top:16px; }
-
-.viewer-arrow { position: fixed; top: 50%; transform: translateY(-50%); font-size: 48px; color: rgba(255,255,255,0.7); cursor: pointer; user-select: none; z-index: 10001; padding: 12px; }
-.viewer-arrow:hover { color: rgba(255,255,255,1); }
-#viewerPrev { left: 12px; }
-#viewerNext { right: 12px; }
-
-#viewerInfo { position: fixed; bottom: 25%; right: 16px; color: rgba(255,255,255,0.75); font-size: 14px; line-height: 1.4; text-align: right; z-index: 10001; }
-#viewerInfo .small-en { font-size:0.85em; }
+body{font-family:Arial,sans-serif;margin:0;padding:20px}
+h1,h2,h3{margin-top:24px;line-height:1.25}
+.small-en{display:block;font-size:.75em;color:#555}
+#dropZone{border:3px dashed #444;padding:36px;text-align:center;font-size:18px;margin-bottom:16px;cursor:pointer}
+#dropZone.dragover{background:#f0f0f0}
+.controls{margin-bottom:20px}
+.controls button{margin-right:8px}
+.section{margin-bottom:48px;padding-bottom:16px;border-bottom:1px dashed #ccc}
+.grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
+.image-card{border:1px solid #ddd;padding:8px;font-size:12px;border-radius:6px;background:#fafafa}
+.image-card b{display:block;margin-bottom:4px;text-align:center}
+.overlay-box{position:relative;width:100%;aspect-ratio:1/1;border:1px solid #aaa;background:#fdfdfd;border-radius:4px}
+.overlay-box img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;cursor:pointer}
+.ok{color:green}.error{color:red}
+#viewerOverlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;z-index:10000}
+#viewerContainer{position:absolute;inset:0;overflow:hidden;cursor:grab}
+#viewerImageWrap{position:absolute;top:50%;left:50%;transform-origin:center center}
+#viewerClose{position:fixed;top:12px;right:16px;font-size:22px;color:#fff;cursor:pointer;opacity:.85;z-index:10001}
+#viewerScaleLabel{position:fixed;top:12px;left:16px;color:#fff;font-size:14px;z-index:10001}
+#viewerInfo{position:fixed;right:16px;bottom:25%;color:rgba(255,255,255,.8);font-size:14px;line-height:1.4;text-align:right;z-index:10001}
+.viewerArrow{position:fixed;top:50%;transform:translateY(-50%);font-size:48px;color:rgba(255,255,255,.6);cursor:pointer;z-index:10001;user-select:none}
+#arrowLeft{left:20px}#arrowRight{right:20px}
 </style>
 </head>
 <body>
-<div id="controls">
-  <button id="openImages">選取圖片<br><span class="small-en">Select Images</span></button>
-  <button id="openFolder">選取資料夾<br><span class="small-en">Select Folder</span></button>
+<h1>圖片檢查工具<span class="small-en">Image Inspection Tool</span></h1>
+<div id="dropZone">👉 拖入圖片 / 資料夾，或點此選取<span class="small-en">Drag images / folders here, or click to browse</span></div>
+<div class="controls">
+<button id="openFilesBtn">選取圖片<span class="small-en">Select Images</span></button>
+<button id="openFolderBtn">選取資料夾<span class="small-en">Select Folder</span></button>
+<input id="fileInput" type="file" multiple accept="image/*" hidden>
+<input id="folderInput" type="file" webkitdirectory hidden>
 </div>
-<div id="dropZone">拖入圖片或資料夾<br><span class="small-en">Drop images or folders here</span></div>
-<div id="output"></div>
-
+<h2>疊合檢查<span class="small-en">Overlay Inspection</span></h2>
+<div id="overlayArea"></div>
 <div id="viewerOverlay">
-  <div id="viewerContainer"></div>
-  <div id="viewerPrev" class="viewer-arrow">‹</div>
-  <div id="viewerNext" class="viewer-arrow">›</div>
+  <div id="viewerContainer"><div id="viewerImageWrap"></div></div>
   <div id="viewerClose">✕</div>
   <div id="viewerScaleLabel">30%</div>
-  <div id="viewerInfo">
-    滾輪：縮放　拖曳：平移<br>
-    + / -：縮放　← / →：切換疊合序列　Esc：關閉
-    <div class="small-en">
-      Wheel: Zoom &nbsp; Drag: Pan<br>
-      + / -: Zoom &nbsp; ← / →: Overlay Sequence &nbsp; Esc: Close
-    </div>
+  <div id="viewerInfo">滾輪：縮放　拖曳：平移<br>← →：切換 g<br>Esc：關閉
+    <div class="small-en">Wheel: Zoom &nbsp; Drag: Pan<br>← →: Switch g &nbsp; Esc: Close</div>
   </div>
+  <div id="arrowLeft" class="viewerArrow">◀</div>
+  <div id="arrowRight" class="viewerArrow">▶</div>
 </div>
-
-<input type="file" id="fileInput" multiple accept="image/*" style="display:none" />
-<input type="file" id="folderInput" webkitdirectory directory style="display:none" />
-
 <script>
-const output = document.getElementById("output");
-const dropZone = document.getElementById("dropZone");
-const fileInput = document.getElementById("fileInput");
-const folderInput = document.getElementById("folderInput");
-
-const viewerOverlay = document.getElementById("viewerOverlay");
-const viewerContainer = document.getElementById("viewerContainer");
-const viewerClose = document.getElementById("viewerClose");
-const viewerScaleLabel = document.getElementById("viewerScaleLabel");
-const viewerPrev = document.getElementById("viewerPrev");
-const viewerNext = document.getElementById("viewerNext");
-
-let seriesMap = {};
-
-let viewerSeries = null;
-let viewerIndex = 0;
-let viewerScale = 0.3;
-let isDragging = false;
-let dragStart = {x:0,y:0};
-let imgStart = {x:0,y:0};
-
-// ===== Helpers =====
-function parseName(name) {
-  const m = name.match(/(.+?)[-_ ]?(g[1-6])/i);
-  if (!m) return null;
-  return { series: m[1], g: m[2].toLowerCase() };
-}
-
-function isValidSize(file, cb) {
-  const img = new Image();
-  img.onload = () => cb(img.width === 4800 && img.height === 4800);
-  img.src = URL.createObjectURL(file);
-}
-
-function handleFiles(files) {
-  [...files].forEach(file => {
-    const info = parseName(file.name);
-    if (!info) return;
-
-    isValidSize(file, ok => {
-      if (!ok) return;
-      if (!seriesMap[info.series]) seriesMap[info.series] = { A:{}, B:{} };
-      const format = file.name.includes("A") ? "A" : "B";
-      if (!seriesMap[info.series][format][info.g]) seriesMap[info.series][format][info.g] = [];
-      seriesMap[info.series][format][info.g].push(file);
-      render();
-    });
-  });
-}
-
-// ===== Rendering =====
-function render() {
-  output.innerHTML = "";
-  Object.keys(seriesMap).forEach(series => {
-    const div = document.createElement("div");
-    div.className = "series";
-    div.innerHTML = `<h3>${series}</h3>`;
-
-    for (let i=1;i<=6;i++){
-      const g = "g"+i;
-      const cell = document.createElement("div");
-      cell.className = "cell";
-
-      const aImgs = seriesMap[series].A[g]||[];
-      const bImgs = seriesMap[series].B[g]||[];
-
-      if (aImgs.length||bImgs.length) {
-        [...aImgs,...bImgs].forEach((file,idx)=>{
-          const img = document.createElement("img");
-          img.src = URL.createObjectURL(file);
-          img.style.opacity = idx===0?1:0.5;
-          img.addEventListener("click",()=>openOverlaySequence(series,i));
-          cell.appendChild(img);
-        });
-      } else {
-        cell.innerHTML = `<div class="missing">缺少 ${g}<br><span class="small-en">Lack of ${g}</span></div>`;
-      }
-      div.appendChild(cell);
-    }
-    output.appendChild(div);
-  });
-}
-
-// ===== Overlay Sequence Logic =====
-function openOverlaySequence(series, gIndex) {
-  viewerSeries = series;
-  viewerIndex = gIndex - 1;
-  viewerScale = 0.3;
-  updateViewerImage();
-  viewerOverlay.style.display = "block";
-}
-
-function updateViewerImage() {
-  viewerContainer.innerHTML = "";
-  const g = "g"+(viewerIndex+1);
-  const aImgs = seriesMap[viewerSeries].A[g]||[];
-  const bImgs = seriesMap[viewerSeries].B[g]||[];
-
-  [...aImgs,...bImgs].forEach((file,idx)=>{
-    const img = document.createElement("img");
-    img.src = URL.createObjectURL(file);
-    img.style.position = "absolute";
-    img.style.left = "0";
-    img.style.top = "0";
-    img.style.opacity = idx===0?1:0.5;
-    viewerContainer.appendChild(img);
-  });
-
-  viewerContainer.style.left = "50%";
-  viewerContainer.style.top = "50%";
-  viewerContainer.style.transform = `translate(-50%,-50%) scale(${viewerScale})`;
-  viewerScaleLabel.textContent = Math.round(viewerScale*100)+"%";
-}
-
-function prevImage() {
-  if (!viewerSeries) return;
-  viewerIndex = (viewerIndex + 5) % 6;
-  updateViewerImage();
-}
-
-function nextImage() {
-  if (!viewerSeries) return;
-  viewerIndex = (viewerIndex + 1) % 6;
-  updateViewerImage();
-}
-
-// ===== Viewer Interaction =====
-viewerPrev.onclick = e => { e.stopPropagation(); prevImage(); };
-viewerNext.onclick = e => { e.stopPropagation(); nextImage(); };
-viewerClose.onclick = ()=> viewerOverlay.style.display="none";
-
-viewerOverlay.addEventListener("wheel", e=>{
-  e.preventDefault();
-  viewerScale += e.deltaY<0?0.05:-0.05;
-  viewerScale = Math.max(0.05,Math.min(3,viewerScale));
-  updateViewerImage();
-});
-
-viewerContainer.addEventListener("mousedown", e=>{
-  isDragging = true;
-  dragStart = {x:e.clientX,y:e.clientY};
-  const rect = viewerContainer.getBoundingClientRect();
-  imgStart = {x:rect.left,y:rect.top};
-});
-
-window.addEventListener("mousemove", e=>{
-  if (!isDragging) return;
-  viewerContainer.style.left = imgStart.x + (e.clientX-dragStart.x) + "px";
-  viewerContainer.style.top = imgStart.y + (e.clientY-dragStart.y) + "px";
-  viewerContainer.style.transform = `scale(${viewerScale})`;
-});
-
-window.addEventListener("mouseup", ()=> isDragging=false);
-
-window.addEventListener("keydown", e=>{
-  if (viewerOverlay.style.display!=="block") return;
-  if (e.key==="Escape") viewerOverlay.style.display="none";
-  if (e.key==="ArrowLeft") prevImage();
-  if (e.key==="ArrowRight") nextImage();
-  if (e.key==="+") { viewerScale+=0.05; updateViewerImage(); }
-  if (e.key==="-") { viewerScale-=0.05; updateViewerImage(); }
-});
-
-// ===== Input Handling =====
-dropZone.ondragover = e=>{e.preventDefault();};
-dropZone.ondrop = e=>{e.preventDefault(); handleFiles(e.dataTransfer.files);};
-fileInput.onchange = e=> handleFiles(e.target.files);
-folderInput.onchange = e=> handleFiles(e.target.files);
-
-document.getElementById("openImages").onclick = ()=> fileInput.click();
-document.getElementById("openFolder").onclick = ()=> folderInput.click();
+const formatA=/^3([MW])[A-Za-z](\d{8})-ka-(g[1-6])$/i;
+const formatB=/^(g[1-6])$/i;
+const Gs=["g1","g2","g3","g4","g5","g6"];
+let images=[];
+function processFile(f){if(!f.type.startsWith("image/"))return;const img=new Image();img.onload=()=>{if(img.width!==4800||img.height!==4800)return;const name=f.name.replace(/\.[^/.]+$/,"");let format=null,g=null,key=null;let m=name.match(formatA);if(m){format="A";g=m[3].toLowerCase();key=name.replace(/-ka-g[1-6]$/i,"")}else if(formatB.test(name)){format="B";g=name.toLowerCase()}
+images.push({format,g,key,url:URL.createObjectURL(f)});render()};img.src=URL.createObjectURL(f)}
+function render(){overlayArea.innerHTML="";const map={};images.filter(i=>i.format==="A").forEach(i=>{map[i.key]=map[i.key]||{};map[i.key][i.g]=i});Object.entries(map).forEach(([key,gmap])=>{const sec=document.createElement("div");sec.className="section";sec.innerHTML=`<h3>${key}</h3><div class=grid-6></div>`;const grid=sec.querySelector('.grid-6');Gs.forEach(g=>{const card=document.createElement('div');card.className='image-card';card.innerHTML=`<b>${g}</b><div class=overlay-box></div>`;const box=card.querySelector('.overlay-box');const a=gmap[g];const b=images.find(i=>i.format==='B'&&i.g===g);if(a&&b){[b,a].forEach(i=>{const im=document.createElement('img');im.src=i.url;im.onclick=()=>openViewer(key,g);box.appendChild(im)})}
+grid.appendChild(card)});overlayArea.appendChild(sec)})}
+let curKey=null,curGIndex=0,scale=.3,posX=0,posY=0;
+const wrap=document.getElementById('viewerImageWrap');
+function openViewer(key,g){curKey=key;curGIndex=Gs.indexOf(g);viewerOverlay.style.display='block';scale=.3;posX=0;posY=0;renderViewer()}
+function renderViewer(){wrap.innerHTML='';const g=Gs[curGIndex];const a=images.find(i=>i.format==='A'&&i.key===curKey&&i.g===g);const b=images.find(i=>i.format==='B'&&i.g===g);if(!a||!b)return;[b,a].forEach(i=>{const im=document.createElement('img');im.src=i.url;im.style.position='absolute';im.style.inset=0;im.style.width='100%';im.style.height='100%';im.style.objectFit='contain';wrap.appendChild(im)});updateTransform()}
+function updateTransform(){wrap.style.transform=`translate(-50%,-50%) translate(${posX}px,${posY}px) scale(${scale})`;viewerScaleLabel.textContent=Math.round(scale*100)+'%'}
+document.getElementById('arrowLeft').onclick=()=>{curGIndex=(curGIndex+5)%6;renderViewer()};
+document.getElementById('arrowRight').onclick=()=>{curGIndex=(curGIndex+1)%6;renderViewer()};
+viewerOverlay.onwheel=e=>{e.preventDefault();scale=Math.min(5,Math.max(.2,scale+(e.deltaY<0?.1:-.1)));updateTransform()};
+document.getElementById('viewerClose').onclick=()=>viewerOverlay.style.display='none';
+document.addEventListener('keydown',e=>{if(viewerOverlay.style.display!=='block')return;if(e.key==='ArrowLeft')arrowLeft.onclick();if(e.key==='ArrowRight')arrowRight.onclick();if(e.key==='Escape')viewerOverlay.style.display='none'});
+const dropZone=document.getElementById('dropZone');dropZone.onclick=()=>fileInput.click();dropZone.ondragover=e=>{e.preventDefault();dropZone.classList.add('dragover')};dropZone.ondragleave=()=>dropZone.classList.remove('dragover');dropZone.ondrop=e=>{e.preventDefault();dropZone.classList.remove('dragover');[...e.dataTransfer.files].forEach(processFile)};fileInput.onchange=e=>[...e.target.files].forEach(processFile);folderInput.onchange=e=>[...e.target.files].forEach(processFile);
 </script>
 </body>
 </html>
