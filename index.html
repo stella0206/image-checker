@@ -85,6 +85,22 @@ h1,h2,h3 { margin-top:24px; line-height:1.25; }
   color:rgba(255,255,255,.8);
   text-align:right;
 }
+.viewerArrow {
+  position:fixed;
+  top:50%;
+  transform:translateY(-50%);
+  font-size:48px;
+  color:rgba(255,255,255,.7);
+  cursor:pointer;
+  user-select:none;
+  padding:20px;
+  transition:color .2s;
+}
+.viewerArrow:hover {
+  color:rgba(255,255,255,1);
+}
+#viewerArrowLeft { left:20px; }
+#viewerArrowRight { right:20px; }
 </style>
 </head>
 
@@ -97,16 +113,18 @@ h1,h2,h3 { margin-top:24px; line-height:1.25; }
   <span class="small-en">Drag images or folders here, or click to browse</span>
 </div>
 
-<h2>全部疊合比對<span class="small-en">Compare All Series</span></h2>
-<div id="compareArea" class="grid-6"></div>
-
 <h2>疊合檢查<span class="small-en">Overlay Inspection</span></h2>
 <div id="overlayArea"></div>
+
+<h2>全部 G3 疊合<span class="small-en">All G3 Overlay</span></h2>
+<div id="g3Area"></div>
 
 <div id="viewerOverlay">
   <div id="viewerContainer"></div>
   <div id="viewerClose">✕</div>
   <div id="viewerScale">30%</div>
+  <div class="viewerArrow" id="viewerArrowLeft">‹</div>
+  <div class="viewerArrow" id="viewerArrowRight">›</div>
   <div id="viewerInfo">
     ← / →:切換 g<br>
     滾輪:縮放　Esc:關閉
@@ -182,7 +200,7 @@ function processFile(file){
 
 /* ===== Render ===== */
 function render(){
-  renderCompare();
+  renderG3();
   overlayArea.innerHTML="";
   const seriesMap={};
   images.filter(i=>i.format==="A").forEach(i=>{
@@ -218,34 +236,33 @@ function render(){
   });
 }
 
-function renderCompare(){
-  compareArea.innerHTML="";
+function renderG3(){
+  g3Area.innerHTML="";
   
-  GS.forEach(g=>{
-    const card=document.createElement("div");
-    card.className="image-card";
-    card.innerHTML=`<b>全部 ${g}<span class="small-en">All ${g}</span></b><div class="overlay-box"></div>`;
-    const box=card.querySelector(".overlay-box");
-    
-    // 先加format B
-    const b=images.find(i=>i.format==="B"&&i.g===g);
-    if(b){
-      const img=document.createElement("img");
-      img.src=b.url;
-      img.onclick=()=>openCompareViewer(g);
-      box.appendChild(img);
-    }
-    
-    // 加所有format A的這個g
-    images.filter(i=>i.format==="A"&&i.g===g).forEach(i=>{
-      const img=document.createElement("img");
-      img.src=i.url;
-      img.onclick=()=>openCompareViewer(g);
-      box.appendChild(img);
-    });
-    
-    compareArea.appendChild(card);
+  const card=document.createElement("div");
+  card.className="image-card";
+  card.style.maxWidth="400px";
+  card.innerHTML=`<b>全部 G3<span class="small-en">All G3</span></b><div class="overlay-box"></div>`;
+  const box=card.querySelector(".overlay-box");
+  
+  // 先加format B的g3
+  const b=images.find(i=>i.format==="B"&&i.g==="g3");
+  if(b){
+    const img=document.createElement("img");
+    img.src=b.url;
+    img.onclick=()=>openCompareViewer("g3");
+    box.appendChild(img);
+  }
+  
+  // 加所有format A的g3
+  images.filter(i=>i.format==="A"&&i.g==="g3").forEach(i=>{
+    const img=document.createElement("img");
+    img.src=i.url;
+    img.onclick=()=>openCompareViewer("g3");
+    box.appendChild(img);
   });
+  
+  g3Area.appendChild(card);
 }
 
 /* ===== Viewer ===== */
@@ -342,6 +359,18 @@ window.addEventListener("keydown",e=>{
 
 viewerClose.onclick=()=>viewerOverlay.style.display="none";
 viewerOverlay.onclick=e=>{ if(e.target===viewerOverlay) viewerOverlay.style.display="none"; };
+
+viewerArrowLeft.onclick=()=>{
+  viewerGIndex=(viewerGIndex+5)%6;
+  if(viewerSeries===null) renderCompareViewer();
+  else renderViewer();
+};
+
+viewerArrowRight.onclick=()=>{
+  viewerGIndex=(viewerGIndex+1)%6;
+  if(viewerSeries===null) renderCompareViewer();
+  else renderViewer();
+};
 </script>
 
 </body>
