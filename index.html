@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<title>圖片檢查工具 Image Inspection Tool</title>
+
+<style>
+body { font-family: Arial, sans-serif; margin:0; padding:20px; }
+h1,h2,h3 { margin-top:24px; line-height:1.25; }
+.small-en { display:block; font-size:.75em; color:#555; }
+
+#dropZone {
+  border:3px dashed #444;
+  padding:36px;
+  text-align:center;
+  font-size:18px;
+  margin-bottom:16px;
+  cursor:pointer;
+}
+#dropZone.dragover { background:#f0f0f0; }
+
+.section { margin-bottom:48px; padding-bottom:16px; border-bottom:1px dashed #ccc; }
+.grid-6 { display:grid; grid-template-columns:repeat(6,1fr); gap:16px; }
+
+.image-card {
+  border:1px solid #ddd;
+  padding:8px;
+  font-size:12px;
+  border-radius:6px;
+  background:#fafafa;
+}
+.image-card b { display:block; text-align:center; margin-bottom:4px; }
+
+.overlay-box {
+  position:relative;
+  width:100%;
+  aspect-ratio:1/1;
+  border:1px solid #aaa;
+  background:#fff;
+}
+.overlay-box img {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  cursor:pointer;
+}
+
+.ok{color:green;} .error{color:red;}
+
+#errorList {
+  background:#fff3cd;
+  border:1px solid #ffc107;
+  border-radius:6px;
+  padding:16px;
+  margin-bottom:24px;
+  display:none;
+}
+#errorList h3 { margin-top:0; color:#856404; }
+#errorList ul { margin:8px 0; padding-left:20px; }
+#errorList li { margin:4px 0; color:#856404; }
+
+/* ===== Viewer ===== */
+#viewerOverlay {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.88);
+  display:none; z-index:9999;
+}
+#viewerContainer { position:absolute; inset:0; overflow:hidden; cursor:grab; }
+#viewerContainer.dragging { cursor:grabbing; }
+#viewerWrap {
+  position:absolute;
+  transform-origin:0 0;
+}
+#viewerWrap img {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  pointer-events:none;
+}
+#viewerClose {
+  position:fixed; top:12px; right:16px;
+  font-size:22px; color:#fff; cursor:pointer;
+}
+#viewerScale {
+  position:fixed; top:12px; left:16px;
+  color:#fff; font-size:16px;
+}
+#viewerInfo {
+  position:fixed;
+  right:16px;
+  bottom:25%;
+  font-size:14px;
+  color:rgba(255,255,255,.8);
+  text-align:right;
+}
+.viewerArrow {
+  position:fixed;
+  top:50%;
+  transform:translateY(-50%);
+  font-size:48px;
+  color:rgba(255,255,255,.7);
+  cursor:pointer;
+  user-select:none;
+  padding:20px;
+  transition:color .2s;
+}
+.viewerArrow:hover {
+  color:rgba(255,255,255,1);
+}
+#viewerArrowLeft { left:20px; }
+#viewerArrowRight { right:20px; }
+</style>
+</head>
+
+<body>
+
+<h1>圖片檢查工具<span class="small-en">Image Inspection Tool</span></h1>
+
+<div id="dropZone">
+  👉 拖入圖片或資料夾,或點此選取
+  <span class="small-en">Drag images or folders here, or click to browse</span>
+  <input type="file" id="fileInput" multiple accept="image/*" style="display:none;" webkitdirectory>
+</div>
+
+<div id="errorList">
+  <h3>⚠️ 無法讀取的檔案</h3>
+  <ul id="errorItems"></ul>
+</div>
+
+<h2>完整性檢查<span class="small-en">Completeness Check</span></h2>
+<div id="completenessArea"></div>
+
+<h2>疊合檢查<span class="small-en">Overlay Inspection</span></h2>
+<div id="overlayArea"></div>
+
+<h2>全部 G3 疊合<span class="small-en">All G3 Overlay</span></h2>
+<div id="g3Area"></div>
+
+<div id="viewerOverlay">
+  <div id="viewerContainer"></div>
+  <div id="viewerClose">✕</div>
+  <div id="viewerScale">20%</div>
+  <div class="viewerArrow" id="viewerArrowLeft">‹</div>
+  <div class="viewerArrow" id="viewerArrowRight">›</div>
+  <div id="viewerInfo">
+    ← / →:切換圖片<br>
+    滾輪:縮放　拖曳:移動　Esc:關閉
+    <div class="small-en">← / →: switch · Wheel: zoom · Drag: pan · Esc: close</div>
+  </div>
+</div>
+
+<script>
+const REQUIRED = 4800;
+const GS = ["g1","g2","g3","g4","g5","g6"];
+const formatA = /^3([MW])[A-Za-z](\d{8})-ka-(g[1-6])$/i;
+const formatB = /^(g[1-6])$/i;
+
+let images=[];
+let errors=[];
+let allSeries=[];
+let currentSeriesIndex=0;
+let viewerSeries=null;
+let viewerGIndex=0;
+let scale=0.2;
+let panX=0, panY=0;
+let isDragging=false;
+let dragStartX=0, dragStartY=0;
+
+/* ===== 讀資料夾 ===== */
+function readEntry(entry){
+  return new Promise(res=>{
+    if(entry.isFile){
+      entry.file(f=>res([f]));
+    }else{
+      const r=entry.createReader();
+      r.readEntries(es=>{
+        Promise.all(es.map(readEntry)).then(a=>res(a.flat()));
+      });
+    }
+  });
+}
+
+/* ===== Drop ===== */
+dropZone.addEventListener("click",(e)=>{
+  if(e.target===dropZone||e.target.classList.contains('small-en')){
+    fileInput.click();
+  }
+});
+
+dropZone.addEventListener("dragover",e=>{
+  e.preventDefault(); 
+  e.stopPropagation();
+  dropZone.classList.add("dragover");
+  console.log("dragover");
+});
+
+dropZone.addEventListener("dragleave",(e)=>{
+  // Only remove dragover if leaving the dropZone itself, not child elements
+  if(e.target===dropZone){
+    dropZone.classList.remove("dragover");
+    console.log("dragleave");
+  }
+});
+
+dropZone.addEventListener("drop",async e=>{
+  console.log("drop event triggered");
+  e.preventDefault(); 
+  e.stopPropagation();
+  dropZone.classList.remove("dragover");
+  
+  const items=[...e.dataTransfer.items];
+  console.log("items:", items.length);
+  
+  // Try webkitGetAsEntry first (for folders)
+  const entries=items.map(i=>i.webkitGetAsEntry?i.webkitGetAsEntry():null).filter(Boolean);
+  console.log("entries:", entries.length);
+  
+  if(entries.length>0){
+    try{
+      const files=(await Promise.all(entries.map(readEntry))).flat();
+      console.log("files from entries:", files.length);
+      files.forEach(processFile);
+    }catch(err){
+      console.error("Error reading entries:", err);
+      // Fallback to regular files
+      [...e.dataTransfer.files].forEach(processFile);
+    }
+  }else{
+    // Just use files directly
+    console.log("using dataTransfer.files:", e.dataTransfer.files.length);
+    [...e.dataTransfer.files].forEach(processFile);
+  }
+});
+
+fileInput.addEventListener("change",e=>{
+  [...e.target.files].forEach(processFile);
+});
+
+/* ===== 處理圖片 ===== */
+function processFile(file){
+  if(!file.type.startsWith("image/")) {
+    errors.push({file:file.name, reason:"不是圖片檔案"});
+    render();
+    return;
+  }
+  
+  const url=URL.createObjectURL(file);
+  const im=new Image();
+  im.onload=()=>{
+    if(im.width!==REQUIRED||im.height!==REQUIRED) {
+      errors.push({file:file.name, reason:`尺寸不符 (${im.width}x${im.height}, 需要${REQUIRED}x${REQUIRED})`});
+      render();
+      return;
+    }
+    
+    const name=file.name.replace(/\.[^/.]+$/,"");
+    let m=name.match(formatA);
+    if(m){
+      images.push({
+        format:"A",
+        g:m[3].toLowerCase(),
+        series:name.replace(/-ka-g[1-6]$/i,""),
+        url
+      });
+    }else if(formatB.test(name)){
+      images.push({ format:"B", g:name.toLowerCase(), url });
+    }else{
+      errors.push({file:file.name, reason:"檔名格式不符"});
+    }
+    render();
+  };
+  im.onerror=()=>{
+    errors.push({file:file.name, reason:"無法載入圖片"});
+    render();
+  };
+  im.src=url;
+}
+
+/* ===== Render ===== */
+function render(){
+  // Show errors
+  if(errors.length>0){
+    errorList.style.display="block";
+    errorItems.innerHTML=errors.map(e=>`<li><b>${e.file}</b>: ${e.reason}</li>`).join("");
+  }else{
+    errorList.style.display="none";
+  }
+  
+  renderCompleteness();
+  renderG3();
+  overlayArea.innerHTML="";
+  const seriesMap={};
+  images.filter(i=>i.format==="A").forEach(i=>{
+    (seriesMap[i.series]??=[]).push(i);
+  });
+
+  allSeries=Object.keys(seriesMap).sort();
+
+  Object.entries(seriesMap).forEach(([key,list])=>{
+    const sec=document.createElement("div");
+    sec.className="section";
+    sec.innerHTML=`<h3>${key}</h3><div class="grid-6"></div>`;
+    const grid=sec.querySelector(".grid-6");
+
+    GS.forEach(g=>{
+      const card=document.createElement("div");
+      card.className="image-card";
+      card.innerHTML=`<b>${g}</b><div class="overlay-box"></div>`;
+      const box=card.querySelector(".overlay-box");
+
+      const b=images.find(i=>i.format==="B"&&i.g===g);
+      const a=list.find(i=>i.g===g);
+
+      [b,a].forEach(i=>{
+        if(!i) return;
+        const img=document.createElement("img");
+        img.src=i.url;
+        img.onclick=()=>openViewer(key,g);
+        box.appendChild(img);
+      });
+
+      grid.appendChild(card);
+    });
+    overlayArea.appendChild(sec);
+  });
+}
+
+function renderCompleteness(){
+  completenessArea.innerHTML="";
+  const seriesMap={};
+  images.filter(i=>i.format==="A").forEach(i=>{
+    (seriesMap[i.series]??=[]).push(i);
+  });
+  
+  if(Object.keys(seriesMap).length===0) return;
+  
+  const incomplete=[];
+  Object.entries(seriesMap).sort().forEach(([series,list])=>{
+    const missing=GS.filter(g=>!list.find(i=>i.g===g));
+    if(missing.length>0){
+      incomplete.push({series, missing});
+    }
+  });
+  
+  if(incomplete.length===0){
+    const msg=document.createElement("div");
+    msg.style.cssText="padding:16px;background:#d4edda;border:1px solid #c3e6cb;border-radius:6px;color:#155724;font-size:16px;";
+    msg.innerHTML="✓ 所有系列完整 <span class='small-en' style='color:#155724;'>All series complete</span>";
+    completenessArea.appendChild(msg);
+  }else{
+    const msg=document.createElement("div");
+    msg.style.cssText="padding:16px;background:#f8d7da;border:1px solid #f5c6cb;border-radius:6px;color:#721c24;";
+    msg.innerHTML=`<b>✗ 發現 ${incomplete.length} 個不完整的系列：</b><br><span class='small-en' style='color:#721c24;'>Found ${incomplete.length} incomplete series:</span>`;
+    
+    const list=document.createElement("ul");
+    list.style.cssText="margin:8px 0 0 0;padding-left:24px;";
+    
+    incomplete.forEach(({series,missing})=>{
+      const item=document.createElement("li");
+      item.style.marginTop="4px";
+      item.innerHTML=`<b>${series}</b>: 缺少 ${missing.join(", ")} <span class='small-en' style='color:#721c24;'>(missing ${missing.join(", ")})</span>`;
+      list.appendChild(item);
+    });
+    
+    msg.appendChild(list);
+    completenessArea.appendChild(msg);
+  }
+}
+
+function renderG3(){
+  g3Area.innerHTML="";
+  
+  const card=document.createElement("div");
+  card.className="image-card";
+  card.style.maxWidth="400px";
+  card.innerHTML=`<b>全部 G3<span class="small-en">All G3</span></b><div class="overlay-box"></div>`;
+  const box=card.querySelector(".overlay-box");
+  
+  // 先加format B的g3
+  const b=images.find(i=>i.format==="B"&&i.g==="g3");
+  if(b){
+    const img=document.createElement("img");
+    img.src=b.url;
+    img.onclick=()=>openCompareViewer("g3");
+    box.appendChild(img);
+  }
+  
+  // 加所有format A的g3
+  images.filter(i=>i.format==="A"&&i.g==="g3").forEach(i=>{
+    const img=document.createElement("img");
+    img.src=i.url;
+    img.onclick=()=>openCompareViewer("g3");
+    box.appendChild(img);
+  });
+  
+  g3Area.appendChild(card);
+}
+
+/* ===== Viewer ===== */
+function openViewer(series,g){
+  viewerSeries=series;
+  currentSeriesIndex=allSeries.indexOf(series);
+  viewerGIndex=GS.indexOf(g);
+  scale=0.2;
+  panX=0; panY=0;
+  viewerOverlay.style.display="block";
+  renderViewer();
+}
+
+function openCompareViewer(g){
+  viewerSeries=null;
+  viewerGIndex=GS.indexOf(g);
+  scale=0.2;
+  panX=0; panY=0;
+  viewerOverlay.style.display="block";
+  renderCompareViewer();
+}
+
+function renderViewer(){
+  viewerContainer.innerHTML="";
+  const wrap=document.createElement("div");
+  wrap.id="viewerWrap";
+  wrap.style.width=REQUIRED+"px";
+  wrap.style.height=REQUIRED+"px";
+  
+  const centerX=viewerContainer.clientWidth/2;
+  const centerY=viewerContainer.clientHeight/2;
+  const offsetX=centerX-REQUIRED*scale/2;
+  const offsetY=centerY-REQUIRED*scale/2;
+  
+  wrap.style.transform=`translate(${offsetX+panX}px, ${offsetY+panY}px) scale(${scale})`;
+
+  const g=GS[viewerGIndex];
+  const b=images.find(i=>i.format==="B"&&i.g===g);
+  const a=images.find(i=>i.format==="A"&&i.series===viewerSeries&&i.g===g);
+
+  [b,a].forEach(i=>{
+    if(!i) return;
+    const im=document.createElement("img");
+    im.src=i.url;
+    wrap.appendChild(im);
+  });
+
+  viewerContainer.appendChild(wrap);
+  viewerScale.textContent=Math.round(scale*100)+"%";
+}
+
+function renderCompareViewer(){
+  viewerContainer.innerHTML="";
+  const wrap=document.createElement("div");
+  wrap.id="viewerWrap";
+  wrap.style.width=REQUIRED+"px";
+  wrap.style.height=REQUIRED+"px";
+  
+  const centerX=viewerContainer.clientWidth/2;
+  const centerY=viewerContainer.clientHeight/2;
+  const offsetX=centerX-REQUIRED*scale/2;
+  const offsetY=centerY-REQUIRED*scale/2;
+  
+  wrap.style.transform=`translate(${offsetX+panX}px, ${offsetY+panY}px) scale(${scale})`;
+
+  const g=GS[viewerGIndex];
+  
+  // 先加format B
+  const b=images.find(i=>i.format==="B"&&i.g===g);
+  if(b){
+    const im=document.createElement("img");
+    im.src=b.url;
+    wrap.appendChild(im);
+  }
+  
+  // 加所有format A的這個g
+  images.filter(i=>i.format==="A"&&i.g===g).forEach(i=>{
+    const im=document.createElement("img");
+    im.src=i.url;
+    wrap.appendChild(im);
+  });
+
+  viewerContainer.appendChild(wrap);
+  viewerScale.textContent=Math.round(scale*100)+"%";
+}
+
+viewerOverlay.addEventListener("wheel",e=>{
+  e.preventDefault();
+  scale+=e.deltaY<0?0.05:-0.05;
+  scale=Math.max(.2,Math.min(5,scale));
+  if(viewerSeries===null) renderCompareViewer();
+  else renderViewer();
+},{passive:false});
+
+// Drag to pan
+viewerContainer.addEventListener("mousedown",e=>{
+  isDragging=true;
+  dragStartX=e.clientX-panX;
+  dragStartY=e.clientY-panY;
+  viewerContainer.classList.add("dragging");
+});
+
+window.addEventListener("mousemove",e=>{
+  if(!isDragging) return;
+  panX=e.clientX-dragStartX;
+  panY=e.clientY-dragStartY;
+  if(viewerSeries===null) renderCompareViewer();
+  else renderViewer();
+});
+
+window.addEventListener("mouseup",()=>{
+  isDragging=false;
+  viewerContainer.classList.remove("dragging");
+});
+
+function navigateImage(direction){
+  if(viewerSeries===null){
+    // In compare mode, just cycle through g1-g6
+    viewerGIndex=(viewerGIndex+direction+6)%6;
+    renderCompareViewer();
+  }else{
+    // In normal mode, navigate through all images across series
+    viewerGIndex+=direction;
+    
+    if(viewerGIndex<0){
+      // Go to previous series, last g
+      currentSeriesIndex--;
+      if(currentSeriesIndex<0) currentSeriesIndex=allSeries.length-1;
+      viewerSeries=allSeries[currentSeriesIndex];
+      viewerGIndex=5;
+    }else if(viewerGIndex>5){
+      // Go to next series, first g
+      currentSeriesIndex++;
+      if(currentSeriesIndex>=allSeries.length) currentSeriesIndex=0;
+      viewerSeries=allSeries[currentSeriesIndex];
+      viewerGIndex=0;
+    }
+    
+    renderViewer();
+  }
+}
+
+window.addEventListener("keydown",e=>{
+  if(viewerOverlay.style.display!=="block") return;
+  if(e.key==="Escape") viewerOverlay.style.display="none";
+  if(e.key==="ArrowRight") navigateImage(1);
+  if(e.key==="ArrowLeft") navigateImage(-1);
+});
+
+viewerClose.onclick=()=>viewerOverlay.style.display="none";
+viewerOverlay.onclick=e=>{ if(e.target===viewerOverlay) viewerOverlay.style.display="none"; };
+
+viewerArrowLeft.onclick=()=>navigateImage(-1);
+viewerArrowRight.onclick=()=>navigateImage(1);
+</script>
+
+</body>
+</html>
